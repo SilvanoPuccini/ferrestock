@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Órdenes de compra | FerreStock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">Órdenes de compra</h1>
+        <p class="text-muted mb-0">Gestiona el abastecimiento y seguimiento de compras.</p>
+    </div>
+    <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva orden</a>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Buscar</label>
+                <input type="text" name="q" value="{{ selected_q }}" class="form-control" placeholder="Número o proveedor">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Proveedor</label>
+                <select name="supplier" class="form-select">
+                    <option value="">Todos</option>
+                    {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}" {% if selected_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                            {{ supplier.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-dark w-100">Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if purchase_orders %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Proveedor</th>
+                            <th>Estado</th>
+                            <th>Fecha estimada</th>
+                            <th>Total</th>
+                            <th>Creada por</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in purchase_orders %}
+                            <tr>
+                                <td>{{ order.number }}</td>
+                                <td>{{ order.supplier.name }}</td>
+                                <td>
+                                    {% if order.status == "draft" %}
+                                        <span class="badge text-bg-secondary">Borrador</span>
+                                    {% elif order.status == "sent" %}
+                                        <span class="badge text-bg-primary">Enviada</span>
+                                    {% elif order.status == "received" %}
+                                        <span class="badge text-bg-success">Recibida</span>
+                                    {% else %}
+                                        <span class="badge text-bg-danger">Cancelada</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.expected_date|default:"-" }}</td>
+                                <td>$ {{ order.total_amount }}</td>
+                                <td>{{ order.created_by.username }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'suppliers:purchase_order_detail' order.pk %}" class="btn btn-sm btn-outline-dark">Ver</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="mb-0">Todavía no hay órdenes de compra cargadas.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
