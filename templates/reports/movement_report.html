@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Reporte de movimientos | FerreStock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="page-title mb-1">Reporte de movimientos</h1>
+        <p class="text-muted mb-0">Consulta y exporta entradas, salidas y ajustes del inventario.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'reports:movement_report_csv' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar CSV</a>
+        <a href="{% url 'reports:movement_report_xlsx' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar Excel</a>
+        <a href="{% url 'reports:movement_report_pdf' %}?{{ export_querystring }}" class="btn btn-dark">Exportar PDF</a>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Movimientos filtrados</div>
+                <h3 class="mt-2 mb-0">{{ total_movements }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Entradas</div>
+                <h3 class="mt-2 mb-0">{{ total_entries }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Salidas</div>
+                <h3 class="mt-2 mb-0">{{ total_exits }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Ajustes</div>
+                <h3 class="mt-2 mb-0">{{ total_adjustments }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Buscar</label>
+                <input type="text" name="q" value="{{ selected_q }}" class="form-control" placeholder="Producto, código, motivo o referencia">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <select name="movement_type" class="form-select">
+                    <option value="">Todos</option>
+                    {% for value, label in movement_types %}
+                        <option value="{{ value }}" {% if selected_movement_type == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Producto</label>
+                <select name="product" class="form-select">
+                    <option value="">Todos</option>
+                    {% for product in products %}
+                        <option value="{{ product.id }}" {% if selected_product == product.id|stringformat:"s" %}selected{% endif %}>
+                            {{ product.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <input type="date" name="date_from" value="{{ selected_date_from }}" class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <input type="date" name="date_to" value="{{ selected_date_to }}" class="form-control">
+            </div>
+
+            <div class="col-md-12">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-dark">Filtrar</button>
+                    <a href="{% url 'reports:movement_report' %}" class="btn btn-outline-secondary">Limpiar</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if movements %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Producto</th>
+                            <th>Código</th>
+                            <th>Tipo</th>
+                            <th>Cantidad</th>
+                            <th>Motivo</th>
+                            <th>Referencia</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for movement in movements %}
+                            <tr>
+                                <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
+                                <td>{{ movement.product.name }}</td>
+                                <td>{{ movement.product.code }}</td>
+                                <td>
+                                    {% if movement.movement_type == "entrada" %}
+                                        <span class="badge text-bg-success">Entrada</span>
+                                    {% elif movement.movement_type == "salida" %}
+                                        <span class="badge text-bg-danger">Salida</span>
+                                    {% else %}
+                                        <span class="badge text-bg-warning">Ajuste</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.quantity }}</td>
+                                <td>{{ movement.reason }}</td>
+                                <td>{{ movement.reference|default:"-" }}</td>
+                                <td>{{ movement.user.username }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="mb-0">No hay movimientos para los filtros seleccionados.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

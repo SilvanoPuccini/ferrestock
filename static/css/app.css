@@ -1,9 +1,23 @@
 body {
-    background-color: #f8f9fa;
+    background-color: #f5f7fb;
 }
 
 .navbar-brand {
     letter-spacing: 0.4px;
+}
+
+.navbar .nav-link.active {
+    font-weight: 700;
+    position: relative;
+}
+
+.navbar .nav-link.active::after {
+    content: "";
+    display: block;
+    height: 2px;
+    background: #fff;
+    margin-top: 4px;
+    border-radius: 999px;
 }
 
 .card {
@@ -20,6 +34,7 @@ body {
 .table > :not(caption) > * > * {
     padding-top: 0.9rem;
     padding-bottom: 0.9rem;
+    vertical-align: middle;
 }
 
 .btn {
@@ -32,7 +47,7 @@ body {
 }
 
 .alert {
-    border-radius: 0.75rem;
+    border-radius: 0.9rem;
 }
 
 .badge {
@@ -44,5 +59,17 @@ body {
 }
 
 .quick-actions .btn {
-    min-width: 140px;
+    min-width: 150px;
+}
+
+.table-danger-subtle {
+    background-color: rgba(220, 53, 69, 0.08);
+}
+
+.table-warning-subtle {
+    background-color: rgba(255, 193, 7, 0.10);
+}
+
+.table-primary-subtle {
+    background-color: rgba(13, 110, 253, 0.08);
 }
