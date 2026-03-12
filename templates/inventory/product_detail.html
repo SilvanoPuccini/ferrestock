@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} | FerreStock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">{{ product.name }}</h1>
+        <p class="text-muted mb-0">Detalle completo del producto.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:product_update' product.pk %}" class="btn btn-outline-primary">Editar</a>
+        <a href="{% url 'inventory:product_delete' product.pk %}" class="btn btn-outline-danger">Eliminar</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
+                {% if product.image %}
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded mb-3">
+                {% else %}
+                    <div class="border rounded p-5 text-muted">Sin imagen</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <strong>Código:</strong><br>
+                        {{ product.code }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Código de barras:</strong><br>
+                        {{ product.barcode|default:"-" }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Categoría:</strong><br>
+                        {{ product.category.name }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Proveedor:</strong><br>
+                        {{ product.supplier.name }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Precio de costo:</strong><br>
+                        $ {{ product.cost_price }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Precio de venta:</strong><br>
+                        $ {{ product.sale_price }}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Stock actual:</strong><br>
+                        {{ product.stock_current }}
+                        {% if product.is_low_stock %}
+                            <span class="badge text-bg-danger ms-1">Stock bajo</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Stock mínimo:</strong><br>
+                        {{ product.stock_minimum }}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Unidad:</strong><br>
+                        {{ product.get_unit_measure_display }}
+                    </div>
+                    <div class="col-md-12">
+                        <strong>Descripción:</strong><br>
+                        {{ product.description|default:"Sin descripción." }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Estado:</strong><br>
+                        {% if product.is_active %}
+                            <span class="badge text-bg-success">Activo</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">Inactivo</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Última actualización:</strong><br>
+                        {{ product.updated_at }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
