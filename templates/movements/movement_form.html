@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo movimiento | FerreStock{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="mb-1">Nuevo movimiento</h1>
+                <p class="text-muted mb-0">Registra una entrada, salida o ajuste de stock.</p>
+            </div>
+            <a href="{% url 'movements:movement_list' %}" class="btn btn-outline-secondary">
+                Volver
+            </a>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="alert alert-info">
+                    Los movimientos registrados actualizan automáticamente el stock del producto y no se editan para conservar trazabilidad.
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.product.id_for_label }}" class="form-label">Producto</label>
+                        {{ form.product }}
+                        {% if form.product.errors %}
+                            <div class="text-danger small mt-1">{{ form.product.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.movement_type.id_for_label }}" class="form-label">Tipo de movimiento</label>
+                        {{ form.movement_type }}
+                        {% if form.movement_type.errors %}
+                            <div class="text-danger small mt-1">{{ form.movement_type.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.quantity.id_for_label }}" class="form-label">Cantidad</label>
+                        {{ form.quantity }}
+                        {% if form.quantity.errors %}
+                            <div class="text-danger small mt-1">{{ form.quantity.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.reason.id_for_label }}" class="form-label">Motivo</label>
+                        {{ form.reason }}
+                        {% if form.reason.errors %}
+                            <div class="text-danger small mt-1">{{ form.reason.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="{{ form.reference.id_for_label }}" class="form-label">Referencia</label>
+                        {{ form.reference }}
+                        {% if form.reference.errors %}
+                            <div class="text-danger small mt-1">{{ form.reference.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-dark">Registrar movimiento</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

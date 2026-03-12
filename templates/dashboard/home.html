@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | FerreStock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">Dashboard</h1>
+        <p class="text-muted mb-0">Resumen operativo del inventario.</p>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">Productos</h6>
+                <h2 class="mb-2">{{ total_products }}</h2>
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-dark">Ver productos</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">Categorías</h6>
+                <h2 class="mb-2">{{ total_categories }}</h2>
+                <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-dark">Ver categorías</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">Proveedores</h6>
+                <h2 class="mb-2">{{ total_suppliers }}</h2>
+                <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-sm btn-dark">Ver proveedores</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm border-danger">
+            <div class="card-body">
+                <h6 class="text-muted">Stock bajo</h6>
+                <h2 class="mb-2">{{ low_stock_count }}</h2>
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-outline-danger">Revisar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Últimos movimientos</strong>
+            </div>
+            <div class="card-body">
+                {% if latest_movements %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Producto</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Usuario</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for movement in latest_movements %}
+                                    <tr>
+                                        <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ movement.product.name }}</td>
+                                        <td>
+                                            {% if movement.movement_type == "entrada" %}
+                                                <span class="badge text-bg-success">Entrada</span>
+                                            {% elif movement.movement_type == "salida" %}
+                                                <span class="badge text-bg-danger">Salida</span>
+                                            {% else %}
+                                                <span class="badge text-bg-warning">Ajuste</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ movement.quantity }}</td>
+                                        <td>{{ movement.user.username }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">Todavía no hay movimientos registrados.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Productos con stock bajo</strong>
+            </div>
+            <div class="card-body">
+                {% if low_stock_products %}
+                    <ul class="list-group list-group-flush">
+                        {% for product in low_stock_products %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-semibold">
+                                        {{ product.name }}
+                                    </a>
+                                    <div class="small text-muted">{{ product.category.name }}</div>
+                                </div>
+                                <span class="badge text-bg-danger">
+                                    {{ product.stock_current }}/{{ product.stock_minimum }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay productos con stock bajo.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
