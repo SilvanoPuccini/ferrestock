@@ -5,8 +5,44 @@
 {% block content %}
 <div class="mb-4">
     <h1 class="page-title mb-1">Centro operativo</h1>
-    <p class="text-muted mb-0">Revisa alertas, movimientos recientes y acciones rápidas del inventario.</p>
+    <p class="text-muted mb-0">Prioriza alertas, ejecuta acciones rápidas y controla el estado del inventario.</p>
 </div>
+
+{% if low_stock_count or overdue_purchase_orders %}
+    <div class="row g-4 mb-4">
+        {% if low_stock_count %}
+            <div class="col-lg-6">
+                <div class="alert alert-danger shadow-sm mb-0">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>Hay {{ low_stock_count }} producto(s) con stock crítico.</strong>
+                            <div class="small">Conviene revisarlos y planificar reposición.</div>
+                        </div>
+                        {% if perms.inventory.view_product %}
+                            <a href="{% url 'inventory:product_list' %}?low_stock=1" class="btn btn-sm btn-danger">Ver críticos</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if overdue_purchase_orders %}
+            <div class="col-lg-6">
+                <div class="alert alert-warning shadow-sm mb-0">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>Hay órdenes de compra vencidas o demoradas.</strong>
+                            <div class="small">Revisa compras pendientes de recepción o seguimiento.</div>
+                        </div>
+                        {% if perms.suppliers.view_purchaseorder %}
+                            <a href="{% url 'suppliers:purchase_order_list' %}" class="btn btn-sm btn-warning">Ver compras</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endif %}
 
 <div class="card shadow-sm mb-4">
     <div class="card-body">
@@ -22,6 +58,9 @@
             {% endif %}
             {% if perms.inventory.add_product and perms.inventory.change_product %}
                 <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+            {% endif %}
+            {% if perms.inventory.view_product %}
+                <a href="{% url 'reports:stock_report' %}" class="btn btn-outline-dark">Reporte stock</a>
             {% endif %}
         </div>
     </div>
@@ -90,6 +129,91 @@
 </div>
 
 <div class="row g-4 mb-4">
+    {% if perms.inventory.view_product %}
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong>Productos críticos</strong>
+            </div>
+            <div class="card-body">
+                {% if critical_products %}
+                    <ul class="list-group list-group-flush">
+                        {% for product in critical_products %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-semibold">
+                                        {{ product.name }}
+                                    </a>
+                                    <div class="small text-muted">{{ product.category.name }} · {{ product.supplier.name }}</div>
+                                </div>
+                                <span class="badge text-bg-danger">{{ product.stock_current }}/{{ product.stock_minimum }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay productos críticos.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if perms.suppliers.view_purchaseorder %}
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong>Compras por recibir</strong>
+            </div>
+            <div class="card-body">
+                {% if pending_receipt_orders %}
+                    <ul class="list-group list-group-flush">
+                        {% for order in pending_receipt_orders %}
+                            <li class="list-group-item px-0">
+                                <a href="{% url 'suppliers:purchase_order_detail' order.pk %}" class="text-decoration-none fw-semibold">
+                                    {{ order.number }}
+                                </a>
+                                <div class="small text-muted">
+                                    {{ order.supplier.name }}{% if order.expected_date %} · ETA {{ order.expected_date }}{% endif %}
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay órdenes enviadas pendientes de recepción.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if perms.suppliers.view_purchaseorder %}
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong>Borradores de compra</strong>
+            </div>
+            <div class="card-body">
+                {% if draft_purchase_orders %}
+                    <ul class="list-group list-group-flush">
+                        {% for order in draft_purchase_orders %}
+                            <li class="list-group-item px-0">
+                                <a href="{% url 'suppliers:purchase_order_detail' order.pk %}" class="text-decoration-none fw-semibold">
+                                    {{ order.number }}
+                                </a>
+                                <div class="small text-muted">{{ order.supplier.name }}</div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay órdenes en borrador.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-4 mb-4">
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white">
@@ -126,37 +250,8 @@
 </div>
 
 <div class="row g-4">
-    {% if perms.inventory.view_product %}
-    <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <strong>Productos críticos</strong>
-            </div>
-            <div class="card-body">
-                {% if low_stock_products %}
-                    <ul class="list-group list-group-flush">
-                        {% for product in low_stock_products %}
-                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-semibold">
-                                        {{ product.name }}
-                                    </a>
-                                    <div class="small text-muted">{{ product.category.name }}</div>
-                                </div>
-                                <span class="badge text-bg-danger">{{ product.stock_current }}/{{ product.stock_minimum }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="mb-0">No hay productos con stock bajo.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     {% if perms.movements.view_stockmovement %}
-    <div class="col-lg-4">
+    <div class="col-lg-6">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <strong>Últimos movimientos</strong>
@@ -182,7 +277,7 @@
     {% endif %}
 
     {% if perms.suppliers.view_purchaseorder %}
-    <div class="col-lg-3">
+    <div class="col-lg-6">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <strong>Compras recientes</strong>

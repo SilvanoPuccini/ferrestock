@@ -1,20 +1,22 @@
 {% extends "base.html" %}
 
-{% block title %}Órdenes de compra | FerreStock{% endblock %}
+{% block title %}Reporte de compras | FerreStock{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h1 class="page-title mb-1">Compras</h1>
-        <p class="text-muted mb-0">Gestiona órdenes de compra, pendientes y recepciones.</p>
+        <h1 class="page-title mb-1">Reporte de compras</h1>
+        <p class="text-muted mb-0">Consulta y exporta órdenes de compra del sistema.</p>
     </div>
-    {% if perms.suppliers.add_purchaseorder %}
-        <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva orden</a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        <a href="{% url 'reports:purchase_report_csv' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar CSV</a>
+        <a href="{% url 'reports:purchase_report_xlsx' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar Excel</a>
+        <a href="{% url 'reports:purchase_report_pdf' %}?{{ export_querystring }}" class="btn btn-dark">Exportar PDF</a>
+    </div>
 </div>
 
 <div class="row g-4 mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Órdenes</div>
@@ -22,7 +24,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Borrador</div>
@@ -30,19 +32,35 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow-sm border-primary h-100">
+    <div class="col-md-2">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Enviadas</div>
                 <h3 class="mt-2 mb-0">{{ total_sent }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow-sm border-success h-100">
+    <div class="col-md-2">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Recibidas</div>
                 <h3 class="mt-2 mb-0">{{ total_received }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Canceladas</div>
+                <h3 class="mt-2 mb-0">{{ total_cancelled }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total $</div>
+                <h3 class="mt-2 mb-0">{{ total_amount }}</h3>
             </div>
         </div>
     </div>
@@ -51,11 +69,12 @@
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <form method="get" class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Buscar</label>
-                <input type="text" name="q" value="{{ selected_q }}" class="form-control" placeholder="Número o proveedor">
-            </div>
             <div class="col-md-3">
+                <label class="form-label">Buscar</label>
+                <input type="text" name="q" value="{{ selected_q }}" class="form-control" placeholder="Número, proveedor o notas">
+            </div>
+
+            <div class="col-md-2">
                 <label class="form-label">Estado</label>
                 <select name="status" class="form-select">
                     <option value="">Todos</option>
@@ -64,6 +83,7 @@
                     {% endfor %}
                 </select>
             </div>
+
             <div class="col-md-3">
                 <label class="form-label">Proveedor</label>
                 <select name="supplier" class="form-select">
@@ -75,8 +95,22 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-dark w-100">Filtrar</button>
+
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <input type="date" name="date_from" value="{{ selected_date_from }}" class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <input type="date" name="date_to" value="{{ selected_date_to }}" class="form-control">
+            </div>
+
+            <div class="col-md-12">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-dark">Filtrar</button>
+                    <a href="{% url 'reports:purchase_report' %}" class="btn btn-outline-secondary">Limpiar</a>
+                </div>
             </div>
         </form>
     </div>
@@ -93,14 +127,14 @@
                             <th>Proveedor</th>
                             <th>Estado</th>
                             <th>Fecha estimada</th>
-                            <th>Total</th>
                             <th>Creada por</th>
-                            <th class="text-end">Acciones</th>
+                            <th>Creada el</th>
+                            <th>Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for order in purchase_orders %}
-                            <tr class="{% if order.status == 'sent' %}table-primary-subtle{% elif order.status == 'draft' %}table-warning-subtle{% endif %}">
+                            <tr>
                                 <td>{{ order.number }}</td>
                                 <td>{{ order.supplier.name }}</td>
                                 <td>
@@ -115,18 +149,16 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ order.expected_date|default:"-" }}</td>
-                                <td>$ {{ order.total_amount }}</td>
                                 <td>{{ order.created_by.username }}</td>
-                                <td class="text-end">
-                                    <a href="{% url 'suppliers:purchase_order_detail' order.pk %}" class="btn btn-sm btn-outline-dark">Ver</a>
-                                </td>
+                                <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                                <td>$ {{ order.total_amount }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         {% else %}
-            <p class="mb-0">Todavía no hay órdenes de compra cargadas.</p>
+            <p class="mb-0">No hay órdenes para los filtros seleccionados.</p>
         {% endif %}
     </div>
 </div>

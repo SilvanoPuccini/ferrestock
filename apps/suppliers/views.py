@@ -73,13 +73,21 @@ class PurchaseOrderListView(AppPermissionMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        queryset = self.object_list
+
         context["suppliers"] = Supplier.objects.filter(is_active=True).order_by("name")
         context["selected_q"] = self.request.GET.get("q", "")
         context["selected_status"] = self.request.GET.get("status", "")
         context["selected_supplier"] = self.request.GET.get("supplier", "")
         context["status_choices"] = PurchaseOrder.STATUS_CHOICES
-        return context
 
+        context["total_orders"] = queryset.count()
+        context["total_draft"] = queryset.filter(status=PurchaseOrder.DRAFT).count()
+        context["total_sent"] = queryset.filter(status=PurchaseOrder.SENT).count()
+        context["total_received"] = queryset.filter(status=PurchaseOrder.RECEIVED).count()
+        context["total_cancelled"] = queryset.filter(status=PurchaseOrder.CANCELLED).count()
+
+        return context
 
 class PurchaseOrderCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):
     permission_required = "suppliers.add_purchaseorder"
@@ -87,6 +95,13 @@ class PurchaseOrderCreateView(AppPermissionMixin, SuccessMessageMixin, CreateVie
     form_class = PurchaseOrderForm
     template_name = "suppliers/purchase_order_form.html"
     success_message = "La orden de compra fue creada correctamente."
+
+    def get_initial(self):
+        initial = super().get_initial()
+        supplier = self.request.GET.get("supplier")
+        if supplier:
+            initial["supplier"] = supplier
+        return initial
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user

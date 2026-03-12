@@ -13,16 +13,35 @@ from apps.suppliers.models import Supplier, PurchaseOrder
 
 @login_required
 def dashboard_home(request):
+    today = timezone.localdate()
+
     total_products = Product.objects.count()
     total_categories = Category.objects.count()
     total_suppliers = Supplier.objects.count()
     total_purchase_orders = PurchaseOrder.objects.count()
     low_stock_count = Product.objects.filter(stock_current__lte=F("stock_minimum")).count()
+
     latest_movements = StockMovement.objects.select_related("product", "user")[:5]
     latest_purchase_orders = PurchaseOrder.objects.select_related("supplier")[:5]
-    low_stock_products = Product.objects.filter(
-        stock_current__lte=F("stock_minimum")
-    ).select_related("category")[:5]
+
+    critical_products = Product.objects.filter(
+        stock_current__lte=F("stock_minimum"),
+        is_active=True,
+    ).select_related("category", "supplier").order_by("stock_current", "name")[:8]
+
+    pending_receipt_orders = PurchaseOrder.objects.select_related("supplier").filter(
+        status=PurchaseOrder.SENT
+    ).order_by("expected_date", "-created_at")[:5]
+
+    draft_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
+        status=PurchaseOrder.DRAFT
+    ).order_by("-created_at")[:5]
+
+    overdue_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
+        status__in=[PurchaseOrder.DRAFT, PurchaseOrder.SENT],
+        expected_date__isnull=False,
+        expected_date__lt=today,
+    ).order_by("expected_date")[:5]
 
     movement_type_rows = (
         StockMovement.objects.values("movement_type")
@@ -67,7 +86,10 @@ def dashboard_home(request):
         "low_stock_count": low_stock_count,
         "latest_movements": latest_movements,
         "latest_purchase_orders": latest_purchase_orders,
-        "low_stock_products": low_stock_products,
+        "critical_products": critical_products,
+        "pending_receipt_orders": pending_receipt_orders,
+        "draft_purchase_orders": draft_purchase_orders,
+        "overdue_purchase_orders": overdue_purchase_orders,
         "movement_type_labels": movement_type_labels,
         "movement_type_counts": movement_type_counts,
         "movement_daily_labels": movement_daily_labels,
