@@ -23,6 +23,9 @@
 
                 <form method="post">
                     {% csrf_token %}
+                    {% if return_to_product %}
+                        <input type="hidden" name="return_to_product" value="1">
+                    {% endif %}
 
                     {% if form.non_field_errors %}
                         <div class="alert alert-danger">
@@ -77,4 +80,3 @@
     </div>
 </div>
 {% endblock %}
-

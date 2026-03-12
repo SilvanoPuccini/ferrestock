@@ -1,24 +1,27 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib.messages.views import SuccessMessageMixin
-from django.core.exceptions import ValidationError
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.db.models import Q
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 
+from apps.core.mixins import AppPermissionMixin
+from apps.core.utils import log_audit_action
 from .forms import SupplierForm, PurchaseOrderForm, PurchaseOrderItemForm
 from .models import Supplier, PurchaseOrder, PurchaseOrderItem
 
 
-class SupplierListView(LoginRequiredMixin, ListView):
+class SupplierListView(AppPermissionMixin, ListView):
+    permission_required = "suppliers.view_supplier"
     model = Supplier
     template_name = "suppliers/supplier_list.html"
     context_object_name = "suppliers"
 
 
-class SupplierCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+class SupplierCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):
+    permission_required = "suppliers.add_supplier"
     model = Supplier
     form_class = SupplierForm
     template_name = "suppliers/supplier_form.html"
@@ -26,7 +29,8 @@ class SupplierCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_message = "El proveedor fue creado correctamente."
 
 
-class SupplierUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class SupplierUpdateView(AppPermissionMixin, SuccessMessageMixin, UpdateView):
+    permission_required = "suppliers.change_supplier"
     model = Supplier
     form_class = SupplierForm
     template_name = "suppliers/supplier_form.html"
@@ -34,13 +38,15 @@ class SupplierUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     success_message = "El proveedor fue actualizado correctamente."
 
 
-class SupplierDeleteView(LoginRequiredMixin, DeleteView):
+class SupplierDeleteView(AppPermissionMixin, DeleteView):
+    permission_required = "suppliers.delete_supplier"
     model = Supplier
     template_name = "suppliers/supplier_confirm_delete.html"
     success_url = reverse_lazy("suppliers:supplier_list")
 
 
-class PurchaseOrderListView(LoginRequiredMixin, ListView):
+class PurchaseOrderListView(AppPermissionMixin, ListView):
+    permission_required = "suppliers.view_purchaseorder"
     model = PurchaseOrder
     template_name = "suppliers/purchase_order_list.html"
     context_object_name = "purchase_orders"
@@ -75,7 +81,8 @@ class PurchaseOrderListView(LoginRequiredMixin, ListView):
         return context
 
 
-class PurchaseOrderCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+class PurchaseOrderCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):
+    permission_required = "suppliers.add_purchaseorder"
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = "suppliers/purchase_order_form.html"
@@ -83,10 +90,21 @@ class PurchaseOrderCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateVie
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        log_audit_action(
+            user=self.request.user,
+            module="purchasing",
+            action="create",
+            object_type="PurchaseOrder",
+            object_id=self.object.pk,
+            object_repr=self.object.number,
+            description="Orden de compra creada.",
+        )
+        return response
 
 
-class PurchaseOrderUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class PurchaseOrderUpdateView(AppPermissionMixin, SuccessMessageMixin, UpdateView):
+    permission_required = "suppliers.change_purchaseorder"
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = "suppliers/purchase_order_form.html"
@@ -99,8 +117,22 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateVie
             return redirect(order.get_absolute_url())
         return super().dispatch(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        log_audit_action(
+            user=self.request.user,
+            module="purchasing",
+            action="update",
+            object_type="PurchaseOrder",
+            object_id=self.object.pk,
+            object_repr=self.object.number,
+            description="Orden de compra actualizada.",
+        )
+        return response
 
-class PurchaseOrderDetailView(LoginRequiredMixin, DetailView):
+
+class PurchaseOrderDetailView(AppPermissionMixin, DetailView):
+    permission_required = "suppliers.view_purchaseorder"
     model = PurchaseOrder
     template_name = "suppliers/purchase_order_detail.html"
     context_object_name = "purchase_order"
@@ -117,6 +149,9 @@ class PurchaseOrderDetailView(LoginRequiredMixin, DetailView):
 
 @login_required
 def purchase_order_add_item(request, pk):
+    if not request.user.has_perms(["suppliers.change_purchaseorder", "suppliers.add_purchaseorderitem"]):
+        raise PermissionDenied
+
     purchase_order = get_object_or_404(PurchaseOrder.objects.select_related("supplier"), pk=pk)
 
     if purchase_order.status != PurchaseOrder.DRAFT:
@@ -129,6 +164,15 @@ def purchase_order_add_item(request, pk):
             item = form.save(commit=False)
             item.purchase_order = purchase_order
             item.save()
+            log_audit_action(
+                user=request.user,
+                module="purchasing",
+                action="update",
+                object_type="PurchaseOrderItem",
+                object_id=item.pk,
+                object_repr=f"{purchase_order.number} - {item.product.name}",
+                description="Ítem agregado a orden de compra.",
+            )
             messages.success(request, "Ítem agregado correctamente a la orden.")
             return redirect(purchase_order.get_absolute_url())
     else:
@@ -146,6 +190,9 @@ def purchase_order_add_item(request, pk):
 
 @login_required
 def purchase_order_delete_item(request, order_pk, item_pk):
+    if not request.user.has_perms(["suppliers.change_purchaseorder", "suppliers.delete_purchaseorderitem"]):
+        raise PermissionDenied
+
     purchase_order = get_object_or_404(PurchaseOrder, pk=order_pk)
     item = get_object_or_404(PurchaseOrderItem, pk=item_pk, purchase_order=purchase_order)
 
@@ -154,7 +201,18 @@ def purchase_order_delete_item(request, order_pk, item_pk):
         return redirect(purchase_order.get_absolute_url())
 
     if request.method == "POST":
+        item_repr = f"{purchase_order.number} - {item.product.name}"
+        item_id = item.pk
         item.delete()
+        log_audit_action(
+            user=request.user,
+            module="purchasing",
+            action="delete",
+            object_type="PurchaseOrderItem",
+            object_id=item_id,
+            object_repr=item_repr,
+            description="Ítem eliminado de orden de compra.",
+        )
         messages.success(request, "Ítem eliminado correctamente.")
         return redirect(purchase_order.get_absolute_url())
 
@@ -163,6 +221,9 @@ def purchase_order_delete_item(request, order_pk, item_pk):
 
 @login_required
 def purchase_order_mark_sent(request, pk):
+    if not request.user.has_perm("suppliers.send_purchaseorder"):
+        raise PermissionDenied
+
     purchase_order = get_object_or_404(PurchaseOrder, pk=pk)
 
     if request.method == "POST":
@@ -173,6 +234,15 @@ def purchase_order_mark_sent(request, pk):
         else:
             purchase_order.status = PurchaseOrder.SENT
             purchase_order.save(update_fields=["status", "updated_at"])
+            log_audit_action(
+                user=request.user,
+                module="purchasing",
+                action="send",
+                object_type="PurchaseOrder",
+                object_id=purchase_order.pk,
+                object_repr=purchase_order.number,
+                description="Orden marcada como enviada.",
+            )
             messages.success(request, "La orden fue marcada como enviada.")
 
     return redirect(purchase_order.get_absolute_url())
@@ -180,11 +250,23 @@ def purchase_order_mark_sent(request, pk):
 
 @login_required
 def purchase_order_receive(request, pk):
+    if not request.user.has_perm("suppliers.receive_purchaseorder"):
+        raise PermissionDenied
+
     purchase_order = get_object_or_404(PurchaseOrder.objects.prefetch_related("items__product"), pk=pk)
 
     if request.method == "POST":
         try:
             purchase_order.receive(request.user)
+            log_audit_action(
+                user=request.user,
+                module="purchasing",
+                action="receive",
+                object_type="PurchaseOrder",
+                object_id=purchase_order.pk,
+                object_repr=purchase_order.number,
+                description="Orden recibida y stock actualizado.",
+            )
             messages.success(request, "La orden fue recibida y el stock se actualizó correctamente.")
         except ValidationError as exc:
             messages.error(request, " ".join(exc.messages))
@@ -194,6 +276,9 @@ def purchase_order_receive(request, pk):
 
 @login_required
 def purchase_order_cancel(request, pk):
+    if not request.user.has_perm("suppliers.cancel_purchaseorder"):
+        raise PermissionDenied
+
     purchase_order = get_object_or_404(PurchaseOrder, pk=pk)
 
     if request.method == "POST":
@@ -202,6 +287,15 @@ def purchase_order_cancel(request, pk):
         else:
             purchase_order.status = PurchaseOrder.CANCELLED
             purchase_order.save(update_fields=["status", "updated_at"])
+            log_audit_action(
+                user=request.user,
+                module="purchasing",
+                action="cancel",
+                object_type="PurchaseOrder",
+                object_id=purchase_order.pk,
+                object_repr=purchase_order.number,
+                description="Orden cancelada.",
+            )
             messages.success(request, "La orden fue cancelada.")
 
     return redirect(purchase_order.get_absolute_url())

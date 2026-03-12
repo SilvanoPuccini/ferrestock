@@ -96,6 +96,11 @@ class PurchaseOrder(models.Model):
         verbose_name = "orden de compra"
         verbose_name_plural = "órdenes de compra"
         ordering = ["-created_at"]
+        permissions = [
+            ("send_purchaseorder", "Can send purchase order"),
+            ("receive_purchaseorder", "Can receive purchase order"),
+            ("cancel_purchaseorder", "Can cancel purchase order"),
+        ]
 
     def __str__(self):
         return self.number

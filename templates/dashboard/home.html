@@ -3,67 +3,90 @@
 {% block title %}Dashboard | FerreStock{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-        <h1 class="mb-1">Dashboard</h1>
-        <p class="text-muted mb-0">Resumen operativo del inventario y abastecimiento.</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
-        <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva compra</a>
+<div class="mb-4">
+    <h1 class="page-title mb-1">Centro operativo</h1>
+    <p class="text-muted mb-0">Revisa alertas, movimientos recientes y acciones rápidas del inventario.</p>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 quick-actions">
+            {% if perms.inventory.add_product %}
+                <a href="{% url 'inventory:product_create' %}" class="btn btn-dark">Nuevo producto</a>
+            {% endif %}
+            {% if perms.movements.add_stockmovement %}
+                <a href="{% url 'movements:movement_create' %}" class="btn btn-outline-dark">Registrar movimiento</a>
+            {% endif %}
+            {% if perms.suppliers.add_purchaseorder %}
+                <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-outline-dark">Nueva compra</a>
+            {% endif %}
+            {% if perms.inventory.add_product and perms.inventory.change_product %}
+                <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 <div class="row g-4 mb-4">
+    {% if perms.inventory.view_product %}
     <div class="col-md-6 col-xl">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Productos</div>
                 <h2 class="mt-2 mb-2">{{ total_products }}</h2>
-                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-dark">Ver</a>
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-dark">Abrir stock</a>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if perms.inventory.view_category %}
     <div class="col-md-6 col-xl">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Categorías</div>
                 <h2 class="mt-2 mb-2">{{ total_categories }}</h2>
-                <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-dark">Ver</a>
+                <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-outline-dark">Ver</a>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if perms.suppliers.view_supplier %}
     <div class="col-md-6 col-xl">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Proveedores</div>
                 <h2 class="mt-2 mb-2">{{ total_suppliers }}</h2>
-                <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-sm btn-dark">Ver</a>
+                <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-sm btn-outline-dark">Ver</a>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if perms.suppliers.view_purchaseorder %}
     <div class="col-md-6 col-xl">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Órdenes de compra</div>
                 <h2 class="mt-2 mb-2">{{ total_purchase_orders }}</h2>
-                <a href="{% url 'suppliers:purchase_order_list' %}" class="btn btn-sm btn-dark">Ver</a>
+                <a href="{% url 'suppliers:purchase_order_list' %}" class="btn btn-sm btn-outline-dark">Abrir compras</a>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if perms.inventory.view_product %}
     <div class="col-md-6 col-xl">
         <div class="card shadow-sm border-danger h-100">
             <div class="card-body">
                 <div class="text-muted small">Stock bajo</div>
                 <h2 class="mt-2 mb-2">{{ low_stock_count }}</h2>
-                <a href="{% url 'inventory:product_list' %}?low_stock=1" class="btn btn-sm btn-outline-danger">Revisar</a>
+                <a href="{% url 'inventory:product_list' %}?low_stock=1" class="btn btn-sm btn-danger">Resolver</a>
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <div class="row g-4 mb-4">
@@ -74,7 +97,9 @@
             </div>
             <div class="card-body">
                 {% if movement_type_counts %}
-                    <canvas id="movementTypeChart" height="180"></canvas>
+                    <div style="height: 280px;">
+                        <canvas id="movementTypeChart"></canvas>
+                    </div>
                 {% else %}
                     <p class="mb-0">Todavía no hay movimientos para graficar.</p>
                 {% endif %}
@@ -85,11 +110,13 @@
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white">
-                <strong>Movimientos últimos 30 días</strong>
+                <strong>Últimos 30 días</strong>
             </div>
             <div class="card-body">
                 {% if movement_daily_labels %}
-                    <canvas id="movementDailyChart" height="180"></canvas>
+                    <div style="height: 280px;">
+                        <canvas id="movementDailyChart"></canvas>
+                    </div>
                 {% else %}
                     <p class="mb-0">Todavía no hay movimientos recientes para graficar.</p>
                 {% endif %}
@@ -99,54 +126,11 @@
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-6">
+    {% if perms.inventory.view_product %}
+    <div class="col-lg-5">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
-                <strong>Últimos movimientos</strong>
-            </div>
-            <div class="card-body">
-                {% if latest_movements %}
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Producto</th>
-                                    <th>Tipo</th>
-                                    <th>Cantidad</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for movement in latest_movements %}
-                                    <tr>
-                                        <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
-                                        <td>{{ movement.product.name }}</td>
-                                        <td>
-                                            {% if movement.movement_type == "entrada" %}
-                                                <span class="badge text-bg-success">Entrada</span>
-                                            {% elif movement.movement_type == "salida" %}
-                                                <span class="badge text-bg-danger">Salida</span>
-                                            {% else %}
-                                                <span class="badge text-bg-warning">Ajuste</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ movement.quantity }}</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="mb-0">Todavía no hay movimientos registrados.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <strong>Stock bajo</strong>
+                <strong>Productos críticos</strong>
             </div>
             <div class="card-body">
                 {% if low_stock_products %}
@@ -169,7 +153,35 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if perms.movements.view_stockmovement %}
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Últimos movimientos</strong>
+            </div>
+            <div class="card-body">
+                {% if latest_movements %}
+                    <ul class="list-group list-group-flush">
+                        {% for movement in latest_movements %}
+                            <li class="list-group-item px-0">
+                                <div class="fw-semibold">{{ movement.product.name }}</div>
+                                <div class="small text-muted">
+                                    {{ movement.created_at|date:"d/m/Y H:i" }} · {{ movement.get_movement_type_display }} · {{ movement.quantity }}
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">Todavía no hay movimientos registrados.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if perms.suppliers.view_purchaseorder %}
     <div class="col-lg-3">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
@@ -188,11 +200,12 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="mb-0">No hay órdenes de compra registradas.</p>
+                    <p class="mb-0">No hay órdenes registradas.</p>
                 {% endif %}
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 {{ movement_type_labels|json_script:"movement-type-labels" }}
@@ -217,9 +230,7 @@
             type: "doughnut",
             data: {
                 labels: movementTypeLabels,
-                datasets: [{
-                    data: movementTypeCounts
-                }]
+                datasets: [{ data: movementTypeCounts }]
             },
             options: {
                 responsive: true,

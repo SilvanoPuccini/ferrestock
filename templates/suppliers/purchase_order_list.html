@@ -8,7 +8,9 @@
         <h1 class="mb-1">Órdenes de compra</h1>
         <p class="text-muted mb-0">Gestiona el abastecimiento y seguimiento de compras.</p>
     </div>
-    <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva orden</a>
+    {% if perms.suppliers.add_purchaseorder %}
+        <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva orden</a>
+    {% endif %}
 </div>
 
 <div class="card shadow-sm mb-4">
