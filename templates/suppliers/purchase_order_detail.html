@@ -10,26 +10,29 @@
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
-        {% if can_edit %}
+        {% if can_edit and perms.suppliers.change_purchaseorder %}
             <a href="{% url 'suppliers:purchase_order_update' purchase_order.pk %}" class="btn btn-outline-primary">Editar</a>
+        {% endif %}
+
+        {% if can_edit and perms.suppliers.change_purchaseorder and perms.suppliers.add_purchaseorderitem %}
             <a href="{% url 'suppliers:purchase_order_add_item' purchase_order.pk %}" class="btn btn-dark">Agregar ítem</a>
         {% endif %}
 
-        {% if purchase_order.status == "draft" and purchase_order.items.all %}
+        {% if purchase_order.status == "draft" and purchase_order.items.all and perms.suppliers.send_purchaseorder %}
             <form method="post" action="{% url 'suppliers:purchase_order_send' purchase_order.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-primary">Marcar enviada</button>
             </form>
         {% endif %}
 
-        {% if can_receive %}
+        {% if can_receive and perms.suppliers.receive_purchaseorder %}
             <form method="post" action="{% url 'suppliers:purchase_order_receive' purchase_order.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success">Recibir orden</button>
             </form>
         {% endif %}
 
-        {% if purchase_order.status != "received" and purchase_order.status != "cancelled" %}
+        {% if purchase_order.status != "received" and purchase_order.status != "cancelled" and perms.suppliers.cancel_purchaseorder %}
             <form method="post" action="{% url 'suppliers:purchase_order_cancel' purchase_order.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-danger">Cancelar</button>
@@ -100,7 +103,7 @@
                             <th>Cantidad</th>
                             <th>Precio unitario</th>
                             <th>Total línea</th>
-                            {% if can_edit %}
+                            {% if can_edit and perms.suppliers.change_purchaseorder and perms.suppliers.delete_purchaseorderitem %}
                                 <th class="text-end">Acciones</th>
                             {% endif %}
                         </tr>
@@ -112,7 +115,7 @@
                                 <td>{{ item.quantity }}</td>
                                 <td>$ {{ item.unit_price }}</td>
                                 <td>$ {{ item.line_total }}</td>
-                                {% if can_edit %}
+                                {% if can_edit and perms.suppliers.change_purchaseorder and perms.suppliers.delete_purchaseorderitem %}
                                     <td class="text-end">
                                         <form method="post" action="{% url 'suppliers:purchase_order_item_delete' purchase_order.pk item.pk %}">
                                             {% csrf_token %}

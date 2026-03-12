@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "apps.suppliers",
     "apps.movements",
     "apps.dashboard",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [

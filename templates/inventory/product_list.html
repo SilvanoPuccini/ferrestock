@@ -1,16 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}Productos | FerreStock{% endblock %}
+{% block title %}Stock | FerreStock{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h1 class="mb-1">Productos</h1>
-        <p class="text-muted mb-0">Gestiona el catálogo del inventario.</p>
+        <h1 class="page-title mb-1">Stock</h1>
+        <p class="text-muted mb-0">Busca, filtra y accede rápido a los productos del inventario.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
-        <a href="{% url 'inventory:product_create' %}" class="btn btn-dark">Nuevo producto</a>
+        {% if perms.inventory.add_product and perms.inventory.change_product %}
+            <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+        {% endif %}
+        {% if perms.inventory.add_product %}
+            <a href="{% url 'inventory:product_create' %}" class="btn btn-dark">Nuevo producto</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total productos</div>
+                <h3 class="mt-2 mb-0">{{ total_products }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Activos</div>
+                <h3 class="mt-2 mb-0">{{ total_active_products }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">Stock bajo</div>
+                <h3 class="mt-2 mb-0">{{ total_low_stock }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Inactivos</div>
+                <h3 class="mt-2 mb-0">{{ total_inactive_products }}</h3>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -89,19 +128,24 @@
                     </thead>
                     <tbody>
                         {% for product in products %}
-                            <tr>
+                            <tr class="{% if product.is_low_stock %}table-danger-subtle{% endif %}">
                                 <td>{{ product.code }}</td>
                                 <td>
                                     <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-semibold">
                                         {{ product.name }}
                                     </a>
+                                    {% if product.barcode %}
+                                        <div class="small text-muted">CB: {{ product.barcode }}</div>
+                                    {% endif %}
                                 </td>
                                 <td>{{ product.category.name }}</td>
                                 <td>{{ product.supplier.name }}</td>
                                 <td>
-                                    {{ product.stock_current }}
+                                    <div class="fw-semibold">{{ product.stock_current }}</div>
                                     {% if product.is_low_stock %}
-                                        <span class="badge text-bg-danger ms-1">Bajo</span>
+                                        <span class="badge text-bg-danger">Stock bajo</span>
+                                    {% else %}
+                                        <span class="badge text-bg-success">OK</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ product.get_unit_measure_display }}</td>
@@ -113,9 +157,17 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-sm btn-outline-dark">Ver</a>
-                                    <a href="{% url 'inventory:product_update' product.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
-                                    <a href="{% url 'inventory:product_delete' product.pk %}" class="btn btn-sm btn-outline-danger">Eliminar</a>
+                                    <div class="d-flex gap-2 justify-content-end flex-wrap">
+                                        {% if perms.inventory.view_product %}
+                                            <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-sm btn-outline-dark">Ver</a>
+                                        {% endif %}
+                                        {% if perms.movements.add_stockmovement %}
+                                            <a href="{% url 'movements:movement_create' %}?product={{ product.pk }}" class="btn btn-sm btn-outline-primary">Mover</a>
+                                        {% endif %}
+                                        {% if perms.inventory.change_product %}
+                                            <a href="{% url 'inventory:product_update' product.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -123,7 +175,13 @@
                 </table>
             </div>
         {% else %}
-            <p class="mb-0">Todavía no hay productos cargados.</p>
+            <div class="text-center py-4">
+                <h5 class="mb-2">No se encontraron productos</h5>
+                <p class="text-muted">Prueba cambiar los filtros o cargar un nuevo producto.</p>
+                {% if perms.inventory.add_product %}
+                    <a href="{% url 'inventory:product_create' %}" class="btn btn-dark">Crear producto</a>
+                {% endif %}
+            </div>
         {% endif %}
     </div>
 </div>

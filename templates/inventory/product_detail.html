@@ -3,32 +3,72 @@
 {% block title %}{{ product.name }} | FerreStock{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h1 class="mb-1">{{ product.name }}</h1>
-        <p class="text-muted mb-0">Detalle completo del producto.</p>
+        <h1 class="page-title mb-1">{{ product.name }}</h1>
+        <p class="text-muted mb-0">Vista operativa del producto.</p>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'inventory:product_update' product.pk %}" class="btn btn-outline-primary">Editar</a>
-        <a href="{% url 'inventory:product_delete' product.pk %}" class="btn btn-outline-danger">Eliminar</a>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if perms.movements.add_stockmovement %}
+            <a href="{% url 'movements:movement_create' %}?product={{ product.pk }}&movement_type=entrada" class="btn btn-dark">Entrada</a>
+            <a href="{% url 'movements:movement_create' %}?product={{ product.pk }}&movement_type=salida" class="btn btn-outline-dark">Salida</a>
+            <a href="{% url 'movements:movement_create' %}?product={{ product.pk }}&movement_type=ajuste" class="btn btn-outline-dark">Ajuste</a>
+        {% endif %}
+        {% if perms.inventory.change_product %}
+            <a href="{% url 'inventory:product_update' product.pk %}" class="btn btn-outline-secondary">Editar</a>
+        {% endif %}
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-body text-center">
-                {% if product.image %}
-                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded mb-3">
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Stock actual</div>
+                <h3 class="mt-2 mb-1">{{ product.stock_current }}</h3>
+                {% if product.is_low_stock %}
+                    <span class="badge text-bg-danger">Crítico</span>
                 {% else %}
-                    <div class="border rounded p-5 text-muted">Sin imagen</div>
+                    <span class="badge text-bg-success">Normal</span>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="col-lg-8">
-        <div class="card shadow-sm">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Stock mínimo</div>
+                <h3 class="mt-2 mb-0">{{ product.stock_minimum }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Precio venta</div>
+                <h3 class="mt-2 mb-0">$ {{ product.sale_price }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Proveedor principal</div>
+                <h6 class="mt-2 mb-0">{{ product.supplier.name }}</h6>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <strong>Información general</strong>
+            </div>
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -44,35 +84,12 @@
                         {{ product.category.name }}
                     </div>
                     <div class="col-md-6">
-                        <strong>Proveedor:</strong><br>
-                        {{ product.supplier.name }}
+                        <strong>Unidad:</strong><br>
+                        {{ product.get_unit_measure_display }}
                     </div>
                     <div class="col-md-6">
                         <strong>Precio de costo:</strong><br>
                         $ {{ product.cost_price }}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Precio de venta:</strong><br>
-                        $ {{ product.sale_price }}
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Stock actual:</strong><br>
-                        {{ product.stock_current }}
-                        {% if product.is_low_stock %}
-                            <span class="badge text-bg-danger ms-1">Stock bajo</span>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Stock mínimo:</strong><br>
-                        {{ product.stock_minimum }}
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Unidad:</strong><br>
-                        {{ product.get_unit_measure_display }}
-                    </div>
-                    <div class="col-md-12">
-                        <strong>Descripción:</strong><br>
-                        {{ product.description|default:"Sin descripción." }}
                     </div>
                     <div class="col-md-6">
                         <strong>Estado:</strong><br>
@@ -82,11 +99,94 @@
                             <span class="badge text-bg-secondary">Inactivo</span>
                         {% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <strong>Última actualización:</strong><br>
-                        {{ product.updated_at }}
+                    <div class="col-12">
+                        <strong>Descripción:</strong><br>
+                        {{ product.description|default:"Sin descripción." }}
                     </div>
                 </div>
+            </div>
+        </div>
+
+        {% if perms.movements.view_stockmovement %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Últimos movimientos</strong>
+            </div>
+            <div class="card-body">
+                {% if latest_movements %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Motivo</th>
+                                    <th>Usuario</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for movement in latest_movements %}
+                                    <tr>
+                                        <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ movement.get_movement_type_display }}</td>
+                                        <td>{{ movement.quantity }}</td>
+                                        <td>{{ movement.reason }}</td>
+                                        <td>{{ movement.user.username }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">Todavía no hay movimientos para este producto.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <strong>Imagen</strong>
+            </div>
+            <div class="card-body text-center">
+                {% if product.image %}
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded">
+                {% else %}
+                    <div class="border rounded p-5 text-muted">Sin imagen</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Proveedores disponibles</strong>
+            </div>
+            <div class="card-body">
+                {% if supplier_links %}
+                    <ul class="list-group list-group-flush">
+                        {% for link in supplier_links %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-semibold">
+                                        {{ link.supplier.name }}
+                                        {% if link.is_primary %}
+                                            <span class="badge text-bg-dark ms-1">Principal</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="small text-muted">
+                                        Lead time: {{ link.lead_time_days }} día(s)
+                                    </div>
+                                </div>
+                                <span class="fw-semibold">$ {{ link.purchase_price }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay relaciones producto-proveedor cargadas.</p>
+                {% endif %}
             </div>
         </div>
     </div>

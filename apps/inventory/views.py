@@ -4,7 +4,7 @@ from io import TextIOWrapper
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db import models
 from django.db.models import Q
@@ -18,6 +18,9 @@ from django.views.generic import (
     DetailView,
 )
 
+from apps.core.mixins import AppPermissionMixin
+from apps.core.utils import log_audit_action
+from apps.movements.models import StockMovement
 from apps.suppliers.models import Supplier, ProductSupplier
 from .forms import CategoryForm, ProductCreateForm, ProductUpdateForm, CSVImportForm
 from .models import Category, Product
@@ -37,13 +40,15 @@ def parse_int(value, default=0):
     return int(text or default)
 
 
-class CategoryListView(LoginRequiredMixin, ListView):
+class CategoryListView(AppPermissionMixin, ListView):
+    permission_required = "inventory.view_category"
     model = Category
     template_name = "inventory/category_list.html"
     context_object_name = "categories"
 
 
-class CategoryCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+class CategoryCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):
+    permission_required = "inventory.add_category"
     model = Category
     form_class = CategoryForm
     template_name = "inventory/category_form.html"
@@ -51,7 +56,8 @@ class CategoryCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_message = "La categoría fue creada correctamente."
 
 
-class CategoryUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class CategoryUpdateView(AppPermissionMixin, SuccessMessageMixin, UpdateView):
+    permission_required = "inventory.change_category"
     model = Category
     form_class = CategoryForm
     template_name = "inventory/category_form.html"
@@ -59,13 +65,15 @@ class CategoryUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     success_message = "La categoría fue actualizada correctamente."
 
 
-class CategoryDeleteView(LoginRequiredMixin, DeleteView):
+class CategoryDeleteView(AppPermissionMixin, DeleteView):
+    permission_required = "inventory.delete_category"
     model = Category
     template_name = "inventory/category_confirm_delete.html"
     success_url = reverse_lazy("inventory:category_list")
 
 
-class ProductListView(LoginRequiredMixin, ListView):
+class ProductListView(AppPermissionMixin, ListView):
+    permission_required = "inventory.view_product"
     model = Product
     template_name = "inventory/product_list.html"
     context_object_name = "products"
@@ -98,16 +106,28 @@ class ProductListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        all_products = Product.objects.all()
+        low_stock_products = Product.objects.filter(stock_current__lte=models.F("stock_minimum"))
+        inactive_products = Product.objects.filter(is_active=False)
+
         context["categories"] = Category.objects.filter(is_active=True).order_by("name")
         context["suppliers"] = Supplier.objects.filter(is_active=True).order_by("name")
         context["selected_q"] = self.request.GET.get("q", "")
         context["selected_category"] = self.request.GET.get("category", "")
         context["selected_supplier"] = self.request.GET.get("supplier", "")
         context["selected_low_stock"] = self.request.GET.get("low_stock", "")
+
+        context["total_products"] = all_products.count()
+        context["total_low_stock"] = low_stock_products.count()
+        context["total_active_products"] = all_products.filter(is_active=True).count()
+        context["total_inactive_products"] = inactive_products.count()
+
         return context
 
 
-class ProductDetailView(LoginRequiredMixin, DetailView):
+class ProductDetailView(AppPermissionMixin, DetailView):
+    permission_required = "inventory.view_product"
     model = Product
     template_name = "inventory/product_detail.html"
     context_object_name = "product"
@@ -118,37 +138,86 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["supplier_links"] = self.object.supplier_links.select_related("supplier").order_by("-is_primary", "supplier__name")
+        context["latest_movements"] = self.object.movements.select_related("user").all()[:8]
         return context
 
 
-class ProductCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+class ProductCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):
+    permission_required = "inventory.add_product"
     model = Product
     form_class = ProductCreateForm
     template_name = "inventory/product_form.html"
     success_message = "El producto fue creado correctamente."
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        log_audit_action(
+            user=self.request.user,
+            module="inventory",
+            action="create",
+            object_type="Product",
+            object_id=self.object.pk,
+            object_repr=str(self.object),
+            description="Producto creado desde frontend.",
+        )
+        return response
+
     def get_success_url(self):
         return reverse_lazy("inventory:product_detail", kwargs={"pk": self.object.pk})
 
 
-class ProductUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class ProductUpdateView(AppPermissionMixin, SuccessMessageMixin, UpdateView):
+    permission_required = "inventory.change_product"
     model = Product
     form_class = ProductUpdateForm
     template_name = "inventory/product_form.html"
     success_message = "El producto fue actualizado correctamente."
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        log_audit_action(
+            user=self.request.user,
+            module="inventory",
+            action="update",
+            object_type="Product",
+            object_id=self.object.pk,
+            object_repr=str(self.object),
+            description="Producto actualizado desde frontend.",
+        )
+        return response
+
     def get_success_url(self):
         return reverse_lazy("inventory:product_detail", kwargs={"pk": self.object.pk})
 
 
-class ProductDeleteView(LoginRequiredMixin, DeleteView):
+class ProductDeleteView(AppPermissionMixin, DeleteView):
+    permission_required = "inventory.delete_product"
     model = Product
     template_name = "inventory/product_confirm_delete.html"
     success_url = reverse_lazy("inventory:product_list")
 
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        object_id = self.object.pk
+        object_repr = str(self.object)
+        response = super().delete(request, *args, **kwargs)
+        log_audit_action(
+            user=request.user,
+            module="inventory",
+            action="delete",
+            object_type="Product",
+            object_id=object_id,
+            object_repr=object_repr,
+            description="Producto eliminado desde frontend.",
+        )
+        return response
+
 
 @login_required
 def import_products_csv(request):
+    if not request.user.has_perms(["inventory.add_product", "inventory.change_product"]):
+        raise PermissionDenied
+
     required_columns = [
         "code",
         "name",
@@ -266,6 +335,20 @@ def import_products_csv(request):
 
                 except Exception as exc:
                     error_rows.append(f"Fila {row_number}: {exc}")
+
+            log_audit_action(
+                user=request.user,
+                module="inventory",
+                action="import",
+                object_type="ProductCSV",
+                object_repr="Importación masiva de productos",
+                description="Importación CSV ejecutada.",
+                metadata={
+                    "created": created_count,
+                    "updated": updated_count,
+                    "errors": error_rows[:10],
+                },
+            )
 
             if created_count or updated_count:
                 messages.success(

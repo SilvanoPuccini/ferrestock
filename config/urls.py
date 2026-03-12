@@ -28,6 +28,7 @@ urlpatterns = [
     path("movements/", include("apps.movements.urls")),
     path("dashboard/", include("apps.dashboard.urls")),
     path("accounts/", include("django.contrib.auth.urls")),
+    path("reports/", include("apps.reports.urls")),
 ]
 
 if settings.DEBUG:
