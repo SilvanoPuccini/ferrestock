@@ -3,57 +3,103 @@
 {% block title %}Dashboard | FerreStock{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
         <h1 class="mb-1">Dashboard</h1>
-        <p class="text-muted mb-0">Resumen operativo del inventario.</p>
+        <p class="text-muted mb-0">Resumen operativo del inventario y abastecimiento.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:product_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+        <a href="{% url 'suppliers:purchase_order_create' %}" class="btn btn-dark">Nueva compra</a>
     </div>
 </div>
 
 <div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="card shadow-sm">
+    <div class="col-md-6 col-xl">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h6 class="text-muted">Productos</h6>
-                <h2 class="mb-2">{{ total_products }}</h2>
-                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-dark">Ver productos</a>
+                <div class="text-muted small">Productos</div>
+                <h2 class="mt-2 mb-2">{{ total_products }}</h2>
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-dark">Ver</a>
             </div>
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm">
+    <div class="col-md-6 col-xl">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h6 class="text-muted">Categorías</h6>
-                <h2 class="mb-2">{{ total_categories }}</h2>
-                <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-dark">Ver categorías</a>
+                <div class="text-muted small">Categorías</div>
+                <h2 class="mt-2 mb-2">{{ total_categories }}</h2>
+                <a href="{% url 'inventory:category_list' %}" class="btn btn-sm btn-dark">Ver</a>
             </div>
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm">
+    <div class="col-md-6 col-xl">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h6 class="text-muted">Proveedores</h6>
-                <h2 class="mb-2">{{ total_suppliers }}</h2>
-                <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-sm btn-dark">Ver proveedores</a>
+                <div class="text-muted small">Proveedores</div>
+                <h2 class="mt-2 mb-2">{{ total_suppliers }}</h2>
+                <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-sm btn-dark">Ver</a>
             </div>
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm border-danger">
+    <div class="col-md-6 col-xl">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h6 class="text-muted">Stock bajo</h6>
-                <h2 class="mb-2">{{ low_stock_count }}</h2>
-                <a href="{% url 'inventory:product_list' %}" class="btn btn-sm btn-outline-danger">Revisar</a>
+                <div class="text-muted small">Órdenes de compra</div>
+                <h2 class="mt-2 mb-2">{{ total_purchase_orders }}</h2>
+                <a href="{% url 'suppliers:purchase_order_list' %}" class="btn btn-sm btn-dark">Ver</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl">
+        <div class="card shadow-sm border-danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">Stock bajo</div>
+                <h2 class="mt-2 mb-2">{{ low_stock_count }}</h2>
+                <a href="{% url 'inventory:product_list' %}?low_stock=1" class="btn btn-sm btn-outline-danger">Revisar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong>Movimientos por tipo</strong>
+            </div>
+            <div class="card-body">
+                {% if movement_type_counts %}
+                    <canvas id="movementTypeChart" height="180"></canvas>
+                {% else %}
+                    <p class="mb-0">Todavía no hay movimientos para graficar.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong>Movimientos últimos 30 días</strong>
+            </div>
+            <div class="card-body">
+                {% if movement_daily_labels %}
+                    <canvas id="movementDailyChart" height="180"></canvas>
+                {% else %}
+                    <p class="mb-0">Todavía no hay movimientos recientes para graficar.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-7">
+    <div class="col-lg-6">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <strong>Últimos movimientos</strong>
@@ -68,7 +114,6 @@
                                     <th>Producto</th>
                                     <th>Tipo</th>
                                     <th>Cantidad</th>
-                                    <th>Usuario</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -86,7 +131,6 @@
                                             {% endif %}
                                         </td>
                                         <td>{{ movement.quantity }}</td>
-                                        <td>{{ movement.user.username }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -99,25 +143,23 @@
         </div>
     </div>
 
-    <div class="col-lg-5">
+    <div class="col-lg-3">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
-                <strong>Productos con stock bajo</strong>
+                <strong>Stock bajo</strong>
             </div>
             <div class="card-body">
                 {% if low_stock_products %}
                     <ul class="list-group list-group-flush">
                         {% for product in low_stock_products %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
                                 <div>
                                     <a href="{% url 'inventory:product_detail' product.pk %}" class="text-decoration-none fw-semibold">
                                         {{ product.name }}
                                     </a>
                                     <div class="small text-muted">{{ product.category.name }}</div>
                                 </div>
-                                <span class="badge text-bg-danger">
-                                    {{ product.stock_current }}/{{ product.stock_minimum }}
-                                </span>
+                                <span class="badge text-bg-danger">{{ product.stock_current }}/{{ product.stock_minimum }}</span>
                             </li>
                         {% endfor %}
                     </ul>
@@ -127,5 +169,82 @@
             </div>
         </div>
     </div>
+
+    <div class="col-lg-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Compras recientes</strong>
+            </div>
+            <div class="card-body">
+                {% if latest_purchase_orders %}
+                    <ul class="list-group list-group-flush">
+                        {% for order in latest_purchase_orders %}
+                            <li class="list-group-item px-0">
+                                <a href="{% url 'suppliers:purchase_order_detail' order.pk %}" class="text-decoration-none fw-semibold">
+                                    {{ order.number }}
+                                </a>
+                                <div class="small text-muted">{{ order.supplier.name }}</div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0">No hay órdenes de compra registradas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
+
+{{ movement_type_labels|json_script:"movement-type-labels" }}
+{{ movement_type_counts|json_script:"movement-type-counts" }}
+{{ movement_daily_labels|json_script:"movement-daily-labels" }}
+{{ entry_series|json_script:"entry-series" }}
+{{ exit_series|json_script:"exit-series" }}
+{{ adjustment_series|json_script:"adjustment-series" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const movementTypeLabels = JSON.parse(document.getElementById("movement-type-labels").textContent);
+    const movementTypeCounts = JSON.parse(document.getElementById("movement-type-counts").textContent);
+    const movementDailyLabels = JSON.parse(document.getElementById("movement-daily-labels").textContent);
+    const entrySeries = JSON.parse(document.getElementById("entry-series").textContent);
+    const exitSeries = JSON.parse(document.getElementById("exit-series").textContent);
+    const adjustmentSeries = JSON.parse(document.getElementById("adjustment-series").textContent);
+
+    const typeCanvas = document.getElementById("movementTypeChart");
+    if (typeCanvas && movementTypeLabels.length) {
+        new Chart(typeCanvas, {
+            type: "doughnut",
+            data: {
+                labels: movementTypeLabels,
+                datasets: [{
+                    data: movementTypeCounts
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+
+    const dailyCanvas = document.getElementById("movementDailyChart");
+    if (dailyCanvas && movementDailyLabels.length) {
+        new Chart(dailyCanvas, {
+            type: "line",
+            data: {
+                labels: movementDailyLabels,
+                datasets: [
+                    { label: "Entradas", data: entrySeries, tension: 0.3 },
+                    { label: "Salidas", data: exitSeries, tension: 0.3 },
+                    { label: "Ajustes", data: adjustmentSeries, tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+</script>
 {% endblock %}

@@ -1,0 +1,48 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    letter-spacing: 0.4px;
+}
+
+.card {
+    border: 0;
+    border-radius: 1rem;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-top-left-radius: 1rem !important;
+    border-top-right-radius: 1rem !important;
+}
+
+.table > :not(caption) > * > * {
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
+
+.btn {
+    border-radius: 0.75rem;
+}
+
+.form-control,
+.form-select {
+    border-radius: 0.75rem;
+}
+
+.alert {
+    border-radius: 0.75rem;
+}
+
+.badge {
+    border-radius: 999px;
+}
+
+.page-title {
+    font-weight: 700;
+}
+
+.quick-actions .btn {
+    min-width: 140px;
+}

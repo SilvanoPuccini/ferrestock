@@ -80,3 +80,10 @@ class ProductUpdateForm(forms.ModelForm):
             "image": forms.ClearableFileInput(attrs={"class": "form-control"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+
+class CSVImportForm(forms.Form):
+    file = forms.FileField(
+        label="Archivo CSV",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".csv"})
+    )

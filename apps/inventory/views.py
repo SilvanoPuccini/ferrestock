@@ -1,7 +1,14 @@
+import csv
+from decimal import Decimal
+from io import TextIOWrapper
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db import models
 from django.db.models import Q
+from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import (
     ListView,
@@ -11,9 +18,23 @@ from django.views.generic import (
     DetailView,
 )
 
-from apps.suppliers.models import Supplier
-from .forms import CategoryForm, ProductCreateForm, ProductUpdateForm
+from apps.suppliers.models import Supplier, ProductSupplier
+from .forms import CategoryForm, ProductCreateForm, ProductUpdateForm, CSVImportForm
 from .models import Category, Product
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "si", "sí"}
+
+
+def parse_decimal(value, default="0"):
+    text = str(value).strip()
+    return Decimal(text or default)
+
+
+def parse_int(value, default=0):
+    text = str(value).strip()
+    return int(text or default)
 
 
 class CategoryListView(LoginRequiredMixin, ListView):
@@ -92,7 +113,12 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "product"
 
     def get_queryset(self):
-        return Product.objects.select_related("category", "supplier")
+        return Product.objects.select_related("category", "supplier").prefetch_related("supplier_links__supplier")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["supplier_links"] = self.object.supplier_links.select_related("supplier").order_by("-is_primary", "supplier__name")
+        return context
 
 
 class ProductCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
@@ -119,3 +145,147 @@ class ProductDeleteView(LoginRequiredMixin, DeleteView):
     model = Product
     template_name = "inventory/product_confirm_delete.html"
     success_url = reverse_lazy("inventory:product_list")
+
+
+@login_required
+def import_products_csv(request):
+    required_columns = [
+        "code",
+        "name",
+        "category",
+        "supplier",
+        "cost_price",
+        "sale_price",
+        "stock_current",
+        "stock_minimum",
+        "unit_measure",
+        "barcode",
+        "description",
+        "is_active",
+    ]
+
+    if request.method == "POST":
+        form = CSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data["file"]
+
+            if not csv_file.name.lower().endswith(".csv"):
+                messages.error(request, "Debes subir un archivo con extensión .csv")
+                return redirect("inventory:product_import")
+
+            decoded_file = TextIOWrapper(csv_file.file, encoding="utf-8")
+            reader = csv.DictReader(decoded_file)
+
+            if reader.fieldnames is None:
+                messages.error(request, "El archivo CSV no tiene encabezados válidos.")
+                return redirect("inventory:product_import")
+
+            missing = [col for col in required_columns if col not in reader.fieldnames]
+            if missing:
+                messages.error(request, f"Faltan columnas obligatorias: {', '.join(missing)}")
+                return redirect("inventory:product_import")
+
+            created_count = 0
+            updated_count = 0
+            error_rows = []
+
+            for row_number, row in enumerate(reader, start=2):
+                try:
+                    code = row["code"].strip()
+                    name = row["name"].strip()
+                    category_name = row["category"].strip()
+                    supplier_name = row["supplier"].strip()
+
+                    if not code or not name or not category_name or not supplier_name:
+                        raise ValueError("code, name, category y supplier son obligatorios.")
+
+                    category, _ = Category.objects.get_or_create(
+                        name=category_name,
+                        defaults={"is_active": True},
+                    )
+
+                    supplier, _ = Supplier.objects.get_or_create(
+                        name=supplier_name,
+                        defaults={"is_active": True},
+                    )
+
+                    barcode = row.get("barcode", "").strip() or None
+                    description = row.get("description", "").strip()
+                    cost_price = parse_decimal(row.get("cost_price", "0"))
+                    sale_price = parse_decimal(row.get("sale_price", "0"))
+                    stock_current = parse_int(row.get("stock_current", "0"))
+                    stock_minimum = parse_int(row.get("stock_minimum", "0"))
+                    unit_measure = row.get("unit_measure", "unidad").strip().lower() or "unidad"
+                    is_active = parse_bool(row.get("is_active", "true"))
+
+                    valid_units = dict(Product.UNIT_CHOICES).keys()
+                    if unit_measure not in valid_units:
+                        unit_measure = "unidad"
+
+                    product = Product.objects.filter(code=code).first()
+
+                    if product:
+                        product.name = name
+                        product.description = description
+                        product.category = category
+                        product.supplier = supplier
+                        product.cost_price = cost_price
+                        product.sale_price = sale_price
+                        product.stock_minimum = stock_minimum
+                        product.unit_measure = unit_measure
+                        product.is_active = is_active
+                        if barcode:
+                            product.barcode = barcode
+                        product.save()
+                        updated_count += 1
+                    else:
+                        product = Product.objects.create(
+                            code=code,
+                            barcode=barcode,
+                            name=name,
+                            description=description,
+                            category=category,
+                            supplier=supplier,
+                            cost_price=cost_price,
+                            sale_price=sale_price,
+                            stock_current=stock_current,
+                            stock_minimum=stock_minimum,
+                            unit_measure=unit_measure,
+                            is_active=is_active,
+                        )
+                        created_count += 1
+
+                    ProductSupplier.objects.update_or_create(
+                        product=product,
+                        supplier=supplier,
+                        defaults={
+                            "purchase_price": cost_price,
+                            "is_primary": supplier == product.supplier,
+                        },
+                    )
+
+                except Exception as exc:
+                    error_rows.append(f"Fila {row_number}: {exc}")
+
+            if created_count or updated_count:
+                messages.success(
+                    request,
+                    f"Importación finalizada. Creados: {created_count}. Actualizados: {updated_count}."
+                )
+
+            if error_rows:
+                preview = " | ".join(error_rows[:5])
+                messages.warning(request, f"Se encontraron errores: {preview}")
+
+            return redirect("inventory:product_list")
+    else:
+        form = CSVImportForm()
+
+    return render(
+        request,
+        "inventory/product_import.html",
+        {
+            "form": form,
+            "required_columns": required_columns,
+        },
+    )

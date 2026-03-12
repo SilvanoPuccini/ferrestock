@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ purchase_order.number }} | FerreStock{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="mb-1">Orden {{ purchase_order.number }}</h1>
+        <p class="text-muted mb-0">Proveedor: {{ purchase_order.supplier.name }}</p>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        {% if can_edit %}
+            <a href="{% url 'suppliers:purchase_order_update' purchase_order.pk %}" class="btn btn-outline-primary">Editar</a>
+            <a href="{% url 'suppliers:purchase_order_add_item' purchase_order.pk %}" class="btn btn-dark">Agregar ítem</a>
+        {% endif %}
+
+        {% if purchase_order.status == "draft" and purchase_order.items.all %}
+            <form method="post" action="{% url 'suppliers:purchase_order_send' purchase_order.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary">Marcar enviada</button>
+            </form>
+        {% endif %}
+
+        {% if can_receive %}
+            <form method="post" action="{% url 'suppliers:purchase_order_receive' purchase_order.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Recibir orden</button>
+            </form>
+        {% endif %}
+
+        {% if purchase_order.status != "received" and purchase_order.status != "cancelled" %}
+            <form method="post" action="{% url 'suppliers:purchase_order_cancel' purchase_order.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger">Cancelar</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Estado</div>
+                <div class="mt-2">
+                    {% if purchase_order.status == "draft" %}
+                        <span class="badge text-bg-secondary">Borrador</span>
+                    {% elif purchase_order.status == "sent" %}
+                        <span class="badge text-bg-primary">Enviada</span>
+                    {% elif purchase_order.status == "received" %}
+                        <span class="badge text-bg-success">Recibida</span>
+                    {% else %}
+                        <span class="badge text-bg-danger">Cancelada</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Fecha estimada</div>
+                <div class="mt-2 fw-semibold">{{ purchase_order.expected_date|default:"-" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Creada por</div>
+                <div class="mt-2 fw-semibold">{{ purchase_order.created_by.username }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Total</div>
+                <div class="mt-2 fw-semibold">$ {{ purchase_order.total_amount }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <strong>Ítems de la orden</strong>
+    </div>
+    <div class="card-body">
+        {% if purchase_order.items.all %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Precio unitario</th>
+                            <th>Total línea</th>
+                            {% if can_edit %}
+                                <th class="text-end">Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in purchase_order.items.all %}
+                            <tr>
+                                <td>{{ item.product.name }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>$ {{ item.unit_price }}</td>
+                                <td>$ {{ item.line_total }}</td>
+                                {% if can_edit %}
+                                    <td class="text-end">
+                                        <form method="post" action="{% url 'suppliers:purchase_order_item_delete' purchase_order.pk item.pk %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                        </form>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="mb-0">Todavía no hay ítems cargados.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if purchase_order.notes %}
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <strong>Notas</strong>
+        </div>
+        <div class="card-body">
+            {{ purchase_order.notes|linebreaks }}
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
