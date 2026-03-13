@@ -285,6 +285,11 @@ Variables de entorno requeridas:
 ⚠️ Nota: La demo está hosteada en Railway con plan gratuito.
 - Disponible hasta aproximadamente el 13 de abril de 2026.
 ```
+```
+🖼️ Almacenamiento de imágenes: Cloudinary (plan gratuito).  
+Las imágenes subidas por los usuarios se almacenan en la nube,  
+garantizando persistencia entre deploys.
+```
 
 ```
 🚀 Deploy básico
