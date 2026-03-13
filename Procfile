@@ -1,1 +1,1 @@
-web: python manage.py migrate && python manage.py setup_roles && python manage.py create_demo_users && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+web: python manage.py migrate && python manage.py collectstatic --noinput && python manage.py setup_roles && python manage.py create_demo_users && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
