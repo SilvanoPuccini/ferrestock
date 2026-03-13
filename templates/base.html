@@ -68,7 +68,7 @@
                     {% if perms.inventory.view_category %}
                         <li class="nav-item">
                             <a class="nav-link {% if current_ns == 'inventory' and current|slice:':9' == 'category_' %}active{% endif %}" href="{% url 'inventory:category_list' %}">
-                                Configuración
+                                Categorías
                             </a>
                         </li>
                     {% endif %}
