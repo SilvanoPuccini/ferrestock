@@ -18,7 +18,7 @@
 [https://github.com/SilvanoPuccini/ferrestock](https://github.com/SilvanoPuccini/ferrestock)
 
 🚀 **Demo en vivo:**  
-[Agregar aquí el enlace público del deploy](https://tu-demo-publica.com)
+[https://ferrestock.up.railway.app](https://ferrestock.up.railway.app)
 
 ---
 
@@ -261,6 +261,31 @@ Filtros en listados
 
 Flujo de trabajo por roles
 ```
+```
+☁️ Deploy en producción (Railway) 
+
+La aplicación está desplegada en Railway usando:
+
+- Python 3.12 + Django 5
+- PostgreSQL (servicio gestionado por Railway)
+- Gunicorn como servidor WSGI
+- Whitenoise para archivos estáticos
+- Variables de entorno para configuración sensible
+
+El deploy se realiza automáticamente desde GitHub ante cada push a `main`.
+
+Variables de entorno requeridas:
+- `DJANGO_SETTINGS_MODULE` → `config.settings.production`
+- `SECRET_KEY` → clave secreta de Django
+- `DEBUG` → `False`
+- `ALLOWED_HOSTS` → `.up.railway.app`
+- `DATABASE_URL` → provista automáticamente por Railway
+- `CSRF_TRUSTED_ORIGINS` → `https://ferrestock.up.railway.app`
+
+⚠️ Nota: La demo está hosteada en Railway con plan gratuito.
+- Disponible hasta aproximadamente el 13 de abril de 2026.
+```
+
 ```
 🚀 Deploy básico
 
