@@ -1,5 +1,7 @@
 # FerreStock — Proyecto Final 1 Django | Conquer Blocks
 
+![FerrerlonStock](https://res.cloudinary.com/dukgz1lpn/image/upload/v1775621645/Inicio-FerreStock_tp9n5y.png)
+
 ### 👤 Información del Estudiante
 
 | Campo | Detalle |
