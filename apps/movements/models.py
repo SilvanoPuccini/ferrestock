@@ -55,7 +55,9 @@ class StockMovement(models.Model):
             self.full_clean()
 
             if is_new:
-                product = self.product
+                from apps.inventory.models import Product
+
+                product = Product.objects.select_for_update().get(pk=self.product_id)
 
                 if self.movement_type == self.ENTRY:
                     product.stock_current += self.quantity
@@ -67,5 +69,6 @@ class StockMovement(models.Model):
                     product.stock_current = self.quantity
 
                 product.save(update_fields=["stock_current", "updated_at"])
+                self.product = product
 
             super().save(*args, **kwargs)

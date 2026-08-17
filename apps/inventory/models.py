@@ -57,8 +57,12 @@ class Product(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(0)],
     )
-    stock_current = models.IntegerField("stock actual", default=0)
-    stock_minimum = models.IntegerField("stock mínimo", default=0)
+    stock_current = models.IntegerField(
+        "stock actual", default=0, validators=[MinValueValidator(0)]
+    )
+    stock_minimum = models.IntegerField(
+        "stock mínimo", default=0, validators=[MinValueValidator(0)]
+    )
     unit_measure = models.CharField("unidad de medida", max_length=20, choices=UNIT_CHOICES, default="unidad")
     image = models.ImageField("imagen", upload_to="products/", blank=True, null=True)
     is_active = models.BooleanField("activo", default=True)

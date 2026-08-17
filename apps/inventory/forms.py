@@ -48,6 +48,16 @@ class ProductCreateForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        cost_price = cleaned_data.get("cost_price")
+        sale_price = cleaned_data.get("sale_price")
+        if cost_price is not None and sale_price is not None and cost_price > sale_price:
+            raise forms.ValidationError(
+                "El precio de costo no puede ser mayor al precio de venta."
+            )
+        return cleaned_data
+
 
 class ProductUpdateForm(forms.ModelForm):
     class Meta:
@@ -80,6 +90,16 @@ class ProductUpdateForm(forms.ModelForm):
             "image": forms.ClearableFileInput(attrs={"class": "form-control"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        cost_price = cleaned_data.get("cost_price")
+        sale_price = cleaned_data.get("sale_price")
+        if cost_price is not None and sale_price is not None and cost_price > sale_price:
+            raise forms.ValidationError(
+                "El precio de costo no puede ser mayor al precio de venta."
+            )
+        return cleaned_data
 
 
 class CSVImportForm(forms.Form):
