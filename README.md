@@ -20,7 +20,7 @@
 [https://github.com/SilvanoPuccini/ferrestock](https://github.com/SilvanoPuccini/ferrestock)
 
 🚀 **Demo en vivo:**  
-[https://ferrestock.up.railway.app](https://ferrestock.up.railway.app)
+[https://ferrestock.onrender.com](https://ferrestock.onrender.com)
 
 ---
 
@@ -264,28 +264,28 @@ Filtros en listados
 Flujo de trabajo por roles
 ```
 ```
-☁️ Deploy en producción (Railway) 
+☁️ Deploy en producción (Render + Neon) 
 
-La aplicación está desplegada en Railway usando:
+La aplicación está desplegada en Render usando:
 
 - Python 3.12 + Django 5
-- PostgreSQL (servicio gestionado por Railway)
+- PostgreSQL gestionado por Neon (plan gratuito)
 - Gunicorn como servidor WSGI
 - Whitenoise para archivos estáticos
 - Variables de entorno para configuración sensible
 
-El deploy se realiza automáticamente desde GitHub ante cada push a `main`.
+El deploy se realiza automáticamente desde GitHub ante cada push a `main`, usando el blueprint `render.yaml` del repo.
 
-Variables de entorno requeridas:
+Variables de entorno requeridas (se configuran en el dashboard de Render):
 - `DJANGO_SETTINGS_MODULE` → `config.settings.production`
-- `SECRET_KEY` → clave secreta de Django
+- `SECRET_KEY` → clave secreta de Django (Render puede generarla)
 - `DEBUG` → `False`
-- `ALLOWED_HOSTS` → `.up.railway.app`
-- `DATABASE_URL` → provista automáticamente por Railway
-- `CSRF_TRUSTED_ORIGINS` → `https://ferrestock.up.railway.app`
+- `ALLOWED_HOSTS` → `.onrender.com`
+- `DATABASE_URL` → connection string de Neon (con `sslmode=require`)
+- `CSRF_TRUSTED_ORIGINS` → `https://*.onrender.com`
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` → credenciales de Cloudinary
 
-⚠️ Nota: La demo está hosteada en Railway con plan gratuito.
-- Disponible hasta aproximadamente el 13 de abril de 2026.
+⚠️ Nota: La demo está hosteada en Render con plan gratuito (Web Service) y Neon con plan gratuito (Postgres).
 ```
 ```
 🖼️ Almacenamiento de imágenes: Cloudinary (plan gratuito).  
