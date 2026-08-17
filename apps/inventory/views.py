@@ -6,8 +6,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
-from django.db import models
-from django.db.models import Q
+from django.db import models, transaction
+from django.db.models import ProtectedError, Q
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import (
@@ -70,6 +70,15 @@ class CategoryDeleteView(AppPermissionMixin, DeleteView):
     model = Category
     template_name = "inventory/category_confirm_delete.html"
     success_url = reverse_lazy("inventory:category_list")
+
+    def form_valid(self, form):
+        try:
+            return super().form_valid(form)
+        except ProtectedError:
+            messages.error(
+                self.request, "No se puede eliminar porque tiene elementos relacionados."
+            )
+            return redirect(self.success_url)
 
 
 class ProductListView(AppPermissionMixin, ListView):
@@ -196,13 +205,18 @@ class ProductDeleteView(AppPermissionMixin, DeleteView):
     template_name = "inventory/product_confirm_delete.html"
     success_url = reverse_lazy("inventory:product_list")
 
-    def delete(self, request, *args, **kwargs):
-        self.object = self.get_object()
+    def form_valid(self, form):
         object_id = self.object.pk
         object_repr = str(self.object)
-        response = super().delete(request, *args, **kwargs)
+        try:
+            response = super().form_valid(form)
+        except ProtectedError:
+            messages.error(
+                self.request, "No se puede eliminar porque tiene elementos relacionados."
+            )
+            return redirect(self.success_url)
         log_audit_action(
-            user=request.user,
+            user=self.request.user,
             module="inventory",
             action="delete",
             object_type="Product",
@@ -287,51 +301,63 @@ def import_products_csv(request):
                     unit_measure = row.get("unit_measure", "unidad").strip().lower() or "unidad"
                     is_active = parse_bool(row.get("is_active", "true"))
 
+                    if stock_current < 0 or stock_minimum < 0:
+                        raise ValueError("El stock no puede ser negativo.")
+
                     valid_units = dict(Product.UNIT_CHOICES).keys()
                     if unit_measure not in valid_units:
                         unit_measure = "unidad"
 
-                    product = Product.objects.filter(code=code).first()
+                    with transaction.atomic():
+                        product = Product.objects.filter(code=code).first()
+                        is_update = False
 
-                    if product:
-                        product.name = name
-                        product.description = description
-                        product.category = category
-                        product.supplier = supplier
-                        product.cost_price = cost_price
-                        product.sale_price = sale_price
-                        product.stock_minimum = stock_minimum
-                        product.unit_measure = unit_measure
-                        product.is_active = is_active
-                        if barcode:
-                            product.barcode = barcode
-                        product.save()
-                        updated_count += 1
-                    else:
-                        product = Product.objects.create(
-                            code=code,
-                            barcode=barcode,
-                            name=name,
-                            description=description,
-                            category=category,
+                        if product:
+                            product.name = name
+                            product.description = description
+                            product.category = category
+                            product.supplier = supplier
+                            product.cost_price = cost_price
+                            product.sale_price = sale_price
+                            product.stock_minimum = stock_minimum
+                            product.unit_measure = unit_measure
+                            product.is_active = is_active
+                            if barcode:
+                                product.barcode = barcode
+                            product.full_clean()
+                            product.save()
+                            is_update = True
+                        else:
+                            product = Product(
+                                code=code,
+                                barcode=barcode,
+                                name=name,
+                                description=description,
+                                category=category,
+                                supplier=supplier,
+                                cost_price=cost_price,
+                                sale_price=sale_price,
+                                stock_current=stock_current,
+                                stock_minimum=stock_minimum,
+                                unit_measure=unit_measure,
+                                is_active=is_active,
+                            )
+                            product.full_clean()
+                            product.save()
+
+                        ProductSupplier.objects.update_or_create(
+                            product=product,
                             supplier=supplier,
-                            cost_price=cost_price,
-                            sale_price=sale_price,
-                            stock_current=stock_current,
-                            stock_minimum=stock_minimum,
-                            unit_measure=unit_measure,
-                            is_active=is_active,
+                            defaults={
+                                "purchase_price": cost_price,
+                                "is_primary": supplier == product.supplier,
+                            },
                         )
-                        created_count += 1
 
-                    ProductSupplier.objects.update_or_create(
-                        product=product,
-                        supplier=supplier,
-                        defaults={
-                            "purchase_price": cost_price,
-                            "is_primary": supplier == product.supplier,
-                        },
-                    )
+                        if is_update:
+                            updated_count += 1
+                        else:
+                            created_count += 1
 
                 except Exception as exc:
                     error_rows.append(f"Fila {row_number}: {exc}")

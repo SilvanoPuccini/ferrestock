@@ -8,9 +8,11 @@
         <h1 class="mb-1">Proveedores</h1>
         <p class="text-muted mb-0">Gestiona la red de proveedores del negocio.</p>
     </div>
-    <a href="{% url 'suppliers:supplier_create' %}" class="btn btn-dark">
-        Nuevo proveedor
-    </a>
+    {% if perms.suppliers.add_supplier %}
+        <a href="{% url 'suppliers:supplier_create' %}" class="btn btn-dark">
+            Nuevo proveedor
+        </a>
+    {% endif %}
 </div>
 
 <div class="card shadow-sm">
@@ -43,12 +45,16 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    <a href="{% url 'suppliers:supplier_update' supplier.pk %}" class="btn btn-sm btn-outline-primary">
-                                        Editar
-                                    </a>
-                                    <a href="{% url 'suppliers:supplier_delete' supplier.pk %}" class="btn btn-sm btn-outline-danger">
-                                        Eliminar
-                                    </a>
+                                    {% if perms.suppliers.change_supplier %}
+                                        <a href="{% url 'suppliers:supplier_update' supplier.pk %}" class="btn btn-sm btn-outline-primary">
+                                            Editar
+                                        </a>
+                                    {% endif %}
+                                    {% if perms.suppliers.delete_supplier %}
+                                        <a href="{% url 'suppliers:supplier_delete' supplier.pk %}" class="btn btn-sm btn-outline-danger">
+                                            Eliminar
+                                        </a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

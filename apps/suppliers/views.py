@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib.messages.views import SuccessMessageMixin
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 
@@ -43,6 +43,15 @@ class SupplierDeleteView(AppPermissionMixin, DeleteView):
     model = Supplier
     template_name = "suppliers/supplier_confirm_delete.html"
     success_url = reverse_lazy("suppliers:supplier_list")
+
+    def form_valid(self, form):
+        try:
+            return super().form_valid(form)
+        except ProtectedError:
+            messages.error(
+                self.request, "No se puede eliminar porque tiene elementos relacionados."
+            )
+            return redirect(self.success_url)
 
 
 class PurchaseOrderListView(AppPermissionMixin, ListView):
