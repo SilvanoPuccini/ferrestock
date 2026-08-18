@@ -1,7 +1,7 @@
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import Q
 from django.urls import reverse_lazy
-from django.views.generic import ListView, CreateView
+from django.views.generic import ListView, CreateView, DetailView
 
 from apps.core.mixins import AppPermissionMixin
 from apps.core.utils import log_audit_action
@@ -41,6 +41,16 @@ class StockMovementListView(AppPermissionMixin, ListView):
         context["selected_type"] = self.request.GET.get("movement_type", "")
         context["movement_types"] = StockMovement.MOVEMENT_TYPES
         return context
+
+
+class StockMovementDetailView(AppPermissionMixin, DetailView):
+    permission_required = "movements.view_stockmovement"
+    model = StockMovement
+    template_name = "movements/movement_detail.html"
+    context_object_name = "movement"
+
+    def get_queryset(self):
+        return StockMovement.objects.select_related("product", "user")
 
 
 class StockMovementCreateView(AppPermissionMixin, SuccessMessageMixin, CreateView):

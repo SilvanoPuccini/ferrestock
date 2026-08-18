@@ -8,11 +8,16 @@
         <h1 class="mb-1">Proveedores</h1>
         <p class="text-muted mb-0">Gestiona la red de proveedores del negocio.</p>
     </div>
-    {% if perms.suppliers.add_supplier %}
-        <a href="{% url 'suppliers:supplier_create' %}" class="btn btn-dark">
-            Nuevo proveedor
-        </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        {% if perms.suppliers.add_supplier and perms.suppliers.change_supplier %}
+            <a href="{% url 'suppliers:supplier_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+        {% endif %}
+        {% if perms.suppliers.add_supplier %}
+            <a href="{% url 'suppliers:supplier_create' %}" class="btn btn-dark">
+                Nuevo proveedor
+            </a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card shadow-sm">

@@ -35,6 +35,19 @@
 
                     <div class="mb-3">
                         <label for="{{ form.product.id_for_label }}" class="form-label">Producto</label>
+                        <input
+                            type="text"
+                            id="product-search"
+                            class="form-control mb-1"
+                            list="product-datalist"
+                            placeholder="Buscar por código o nombre..."
+                            autocomplete="off"
+                        >
+                        <datalist id="product-datalist">
+                            {% for choice in form.fields.product.queryset %}
+                                <option value="{{ choice }}"></option>
+                            {% endfor %}
+                        </datalist>
                         {{ form.product }}
                         {% if form.product.errors %}
                             <div class="text-danger small mt-1">{{ form.product.errors }}</div>
@@ -50,8 +63,11 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="{{ form.quantity.id_for_label }}" class="form-label">Cantidad</label>
+                        <label for="{{ form.quantity.id_for_label }}" class="form-label" id="quantity-label">Cantidad</label>
                         {{ form.quantity }}
+                        <div class="form-text" id="quantity-help">
+                            En entradas y salidas es la cantidad a sumar o restar. En ajustes es el stock final absoluto del producto.
+                        </div>
                         {% if form.quantity.errors %}
                             <div class="text-danger small mt-1">{{ form.quantity.errors }}</div>
                         {% endif %}
@@ -79,4 +95,45 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        var typeSelect = document.getElementById("{{ form.movement_type.id_for_label }}");
+        var quantityLabel = document.getElementById("quantity-label");
+        var quantityHelp = document.getElementById("quantity-help");
+
+        function updateQuantityLabel() {
+            if (typeSelect.value === "ajuste") {
+                quantityLabel.textContent = "Stock final (ajuste)";
+                quantityHelp.textContent = "Es el stock final absoluto del producto después del ajuste, no una cantidad a sumar o restar.";
+            } else {
+                quantityLabel.textContent = "Cantidad";
+                quantityHelp.textContent = "Cantidad a sumar (entrada) o restar (salida) del stock actual.";
+            }
+        }
+
+        if (typeSelect) {
+            typeSelect.addEventListener("change", updateQuantityLabel);
+            updateQuantityLabel();
+        }
+    })();
+
+    (function () {
+        var search = document.getElementById("product-search");
+        var select = document.getElementById("{{ form.product.id_for_label }}");
+        if (!search || !select) return;
+
+        search.addEventListener("input", function () {
+            var typed = search.value.trim();
+            for (var i = 0; i < select.options.length; i++) {
+                if (select.options[i].text.trim() === typed) {
+                    select.value = select.options[i].value;
+                    break;
+                }
+            }
+        });
+    })();
+</script>
 {% endblock %}

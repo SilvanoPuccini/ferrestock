@@ -1,16 +1,28 @@
+import csv
+from io import TextIOWrapper
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.contrib.messages.views import SuccessMessageMixin
 from django.shortcuts import get_object_or_404, redirect, render
+from django.db import transaction
 from django.db.models import ProtectedError, Q
 from django.urls import reverse_lazy
+from django.views.decorators.http import require_POST
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 
-from apps.core.mixins import AppPermissionMixin
+from apps.core.mixins import AppPermissionMixin, require_perms
 from apps.core.utils import log_audit_action
-from .forms import SupplierForm, PurchaseOrderForm, PurchaseOrderItemForm
+from .forms import SupplierForm, PurchaseOrderForm, PurchaseOrderItemForm, SupplierCSVImportForm
 from .models import Supplier, PurchaseOrder, PurchaseOrderItem
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "si", "sí"}
+
+
+SUPPLIER_IMPORT_COLUMNS = ["name", "email", "phone", "address", "contact_person", "is_active"]
 
 
 class SupplierListView(AppPermissionMixin, ListView):
@@ -38,6 +50,94 @@ class SupplierUpdateView(AppPermissionMixin, SuccessMessageMixin, UpdateView):
     success_message = "El proveedor fue actualizado correctamente."
 
 
+@login_required
+@require_perms("suppliers.add_supplier", "suppliers.change_supplier")
+def import_suppliers_csv(request):
+    if request.method == "POST":
+        form = SupplierCSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data["file"]
+
+            if not csv_file.name.lower().endswith(".csv"):
+                messages.error(request, "Debes subir un archivo con extensión .csv")
+                return redirect("suppliers:supplier_import")
+
+            decoded_file = TextIOWrapper(csv_file.file, encoding="utf-8")
+            reader = csv.DictReader(decoded_file)
+
+            if reader.fieldnames is None:
+                messages.error(request, "El archivo CSV no tiene encabezados válidos.")
+                return redirect("suppliers:supplier_import")
+
+            missing = [col for col in SUPPLIER_IMPORT_COLUMNS if col not in reader.fieldnames]
+            if missing:
+                messages.error(request, f"Faltan columnas obligatorias: {', '.join(missing)}")
+                return redirect("suppliers:supplier_import")
+
+            created_count = 0
+            updated_count = 0
+            error_rows = []
+
+            for row_number, row in enumerate(reader, start=2):
+                try:
+                    name = row["name"].strip()
+                    if not name:
+                        raise ValueError("name es obligatorio.")
+
+                    defaults = {
+                        "email": row.get("email", "").strip(),
+                        "phone": row.get("phone", "").strip(),
+                        "address": row.get("address", "").strip(),
+                        "contact_person": row.get("contact_person", "").strip(),
+                        "is_active": parse_bool(row.get("is_active", "true")),
+                    }
+
+                    with transaction.atomic():
+                        supplier, created = Supplier.objects.update_or_create(
+                            name=name, defaults=defaults
+                        )
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+                except Exception as exc:
+                    error_rows.append(f"Fila {row_number}: {exc}")
+
+            log_audit_action(
+                user=request.user,
+                module="suppliers",
+                action="import",
+                object_type="SupplierCSV",
+                object_repr="Importación masiva de proveedores",
+                description="Importación CSV de proveedores ejecutada.",
+                metadata={
+                    "created": created_count,
+                    "updated": updated_count,
+                    "errors": error_rows[:10],
+                },
+            )
+
+            if created_count or updated_count:
+                messages.success(
+                    request,
+                    f"Importación finalizada. Creados: {created_count}. Actualizados: {updated_count}."
+                )
+
+            if error_rows:
+                preview = " | ".join(error_rows[:5])
+                messages.warning(request, f"Se encontraron errores: {preview}")
+
+            return redirect("suppliers:supplier_list")
+    else:
+        form = SupplierCSVImportForm()
+
+    return render(
+        request,
+        "suppliers/supplier_import.html",
+        {"form": form, "required_columns": SUPPLIER_IMPORT_COLUMNS},
+    )
+
+
 class SupplierDeleteView(AppPermissionMixin, DeleteView):
     permission_required = "suppliers.delete_supplier"
     model = Supplier
@@ -59,6 +159,7 @@ class PurchaseOrderListView(AppPermissionMixin, ListView):
     model = PurchaseOrder
     template_name = "suppliers/purchase_order_list.html"
     context_object_name = "purchase_orders"
+    paginate_by = 20
 
     def get_queryset(self):
         queryset = PurchaseOrder.objects.select_related("supplier", "created_by").prefetch_related("items")
@@ -168,14 +269,13 @@ class PurchaseOrderDetailView(AppPermissionMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context["can_edit"] = self.object.status == PurchaseOrder.DRAFT
         context["can_receive"] = self.object.status in [PurchaseOrder.DRAFT, PurchaseOrder.SENT]
+        context["can_reverse_receive"] = self.object.status == PurchaseOrder.RECEIVED
         return context
 
 
 @login_required
+@require_perms("suppliers.change_purchaseorder", "suppliers.add_purchaseorderitem")
 def purchase_order_add_item(request, pk):
-    if not request.user.has_perms(["suppliers.change_purchaseorder", "suppliers.add_purchaseorderitem"]):
-        raise PermissionDenied
-
     purchase_order = get_object_or_404(PurchaseOrder.objects.select_related("supplier"), pk=pk)
 
     if purchase_order.status != PurchaseOrder.DRAFT:
@@ -213,10 +313,9 @@ def purchase_order_add_item(request, pk):
 
 
 @login_required
+@require_perms("suppliers.change_purchaseorder", "suppliers.delete_purchaseorderitem")
+@require_POST
 def purchase_order_delete_item(request, order_pk, item_pk):
-    if not request.user.has_perms(["suppliers.change_purchaseorder", "suppliers.delete_purchaseorderitem"]):
-        raise PermissionDenied
-
     purchase_order = get_object_or_404(PurchaseOrder, pk=order_pk)
     item = get_object_or_404(PurchaseOrderItem, pk=item_pk, purchase_order=purchase_order)
 
@@ -224,102 +323,119 @@ def purchase_order_delete_item(request, order_pk, item_pk):
         messages.error(request, "Solo puedes eliminar ítems de órdenes en borrador.")
         return redirect(purchase_order.get_absolute_url())
 
-    if request.method == "POST":
-        item_repr = f"{purchase_order.number} - {item.product.name}"
-        item_id = item.pk
-        item.delete()
+    item_repr = f"{purchase_order.number} - {item.product.name}"
+    item_id = item.pk
+    item.delete()
+    log_audit_action(
+        user=request.user,
+        module="purchasing",
+        action="delete",
+        object_type="PurchaseOrderItem",
+        object_id=item_id,
+        object_repr=item_repr,
+        description="Ítem eliminado de orden de compra.",
+    )
+    messages.success(request, "Ítem eliminado correctamente.")
+    return redirect(purchase_order.get_absolute_url())
+
+
+@login_required
+@require_perms("suppliers.send_purchaseorder")
+@require_POST
+def purchase_order_mark_sent(request, pk):
+    purchase_order = get_object_or_404(PurchaseOrder, pk=pk)
+
+    if purchase_order.status != PurchaseOrder.DRAFT:
+        messages.error(request, "Solo las órdenes en borrador pueden marcarse como enviadas.")
+    elif not purchase_order.items.exists():
+        messages.error(request, "Agrega al menos un ítem antes de marcar la orden como enviada.")
+    else:
+        purchase_order.status = PurchaseOrder.SENT
+        purchase_order.save(update_fields=["status", "updated_at"])
         log_audit_action(
             user=request.user,
             module="purchasing",
-            action="delete",
-            object_type="PurchaseOrderItem",
-            object_id=item_id,
-            object_repr=item_repr,
-            description="Ítem eliminado de orden de compra.",
+            action="send",
+            object_type="PurchaseOrder",
+            object_id=purchase_order.pk,
+            object_repr=purchase_order.number,
+            description="Orden marcada como enviada.",
         )
-        messages.success(request, "Ítem eliminado correctamente.")
-        return redirect(purchase_order.get_absolute_url())
+        messages.success(request, "La orden fue marcada como enviada.")
 
     return redirect(purchase_order.get_absolute_url())
 
 
 @login_required
-def purchase_order_mark_sent(request, pk):
-    if not request.user.has_perm("suppliers.send_purchaseorder"):
-        raise PermissionDenied
-
-    purchase_order = get_object_or_404(PurchaseOrder, pk=pk)
-
-    if request.method == "POST":
-        if purchase_order.status != PurchaseOrder.DRAFT:
-            messages.error(request, "Solo las órdenes en borrador pueden marcarse como enviadas.")
-        elif not purchase_order.items.exists():
-            messages.error(request, "Agrega al menos un ítem antes de marcar la orden como enviada.")
-        else:
-            purchase_order.status = PurchaseOrder.SENT
-            purchase_order.save(update_fields=["status", "updated_at"])
-            log_audit_action(
-                user=request.user,
-                module="purchasing",
-                action="send",
-                object_type="PurchaseOrder",
-                object_id=purchase_order.pk,
-                object_repr=purchase_order.number,
-                description="Orden marcada como enviada.",
-            )
-            messages.success(request, "La orden fue marcada como enviada.")
-
-    return redirect(purchase_order.get_absolute_url())
-
-
-@login_required
+@require_perms("suppliers.receive_purchaseorder")
+@require_POST
 def purchase_order_receive(request, pk):
-    if not request.user.has_perm("suppliers.receive_purchaseorder"):
-        raise PermissionDenied
-
     purchase_order = get_object_or_404(PurchaseOrder.objects.prefetch_related("items__product"), pk=pk)
 
-    if request.method == "POST":
-        try:
-            purchase_order.receive(request.user)
-            log_audit_action(
-                user=request.user,
-                module="purchasing",
-                action="receive",
-                object_type="PurchaseOrder",
-                object_id=purchase_order.pk,
-                object_repr=purchase_order.number,
-                description="Orden recibida y stock actualizado.",
-            )
-            messages.success(request, "La orden fue recibida y el stock se actualizó correctamente.")
-        except ValidationError as exc:
-            messages.error(request, " ".join(exc.messages))
+    try:
+        purchase_order.receive(request.user)
+        log_audit_action(
+            user=request.user,
+            module="purchasing",
+            action="receive",
+            object_type="PurchaseOrder",
+            object_id=purchase_order.pk,
+            object_repr=purchase_order.number,
+            description="Orden recibida y stock actualizado.",
+        )
+        messages.success(request, "La orden fue recibida y el stock se actualizó correctamente.")
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
 
     return redirect(purchase_order.get_absolute_url())
 
 
 @login_required
-def purchase_order_cancel(request, pk):
-    if not request.user.has_perm("suppliers.cancel_purchaseorder"):
-        raise PermissionDenied
+@require_perms("suppliers.receive_purchaseorder")
+@require_POST
+def purchase_order_reverse_receive(request, pk):
+    purchase_order = get_object_or_404(
+        PurchaseOrder.objects.prefetch_related("items__product"), pk=pk
+    )
 
+    try:
+        purchase_order.reverse_receive(request.user)
+        log_audit_action(
+            user=request.user,
+            module="purchasing",
+            action="cancel",
+            object_type="PurchaseOrder",
+            object_id=purchase_order.pk,
+            object_repr=purchase_order.number,
+            description="Recepción de orden revertida y stock ajustado.",
+        )
+        messages.success(request, "La recepción fue revertida y el stock se ajustó correctamente.")
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+
+    return redirect(purchase_order.get_absolute_url())
+
+
+@login_required
+@require_perms("suppliers.cancel_purchaseorder")
+@require_POST
+def purchase_order_cancel(request, pk):
     purchase_order = get_object_or_404(PurchaseOrder, pk=pk)
 
-    if request.method == "POST":
-        if purchase_order.status == PurchaseOrder.RECEIVED:
-            messages.error(request, "No puedes cancelar una orden ya recibida.")
-        else:
-            purchase_order.status = PurchaseOrder.CANCELLED
-            purchase_order.save(update_fields=["status", "updated_at"])
-            log_audit_action(
-                user=request.user,
-                module="purchasing",
-                action="cancel",
-                object_type="PurchaseOrder",
-                object_id=purchase_order.pk,
-                object_repr=purchase_order.number,
-                description="Orden cancelada.",
-            )
-            messages.success(request, "La orden fue cancelada.")
+    if purchase_order.status == PurchaseOrder.RECEIVED:
+        messages.error(request, "No puedes cancelar una orden ya recibida.")
+    else:
+        purchase_order.status = PurchaseOrder.CANCELLED
+        purchase_order.save(update_fields=["status", "updated_at"])
+        log_audit_action(
+            user=request.user,
+            module="purchasing",
+            action="cancel",
+            object_type="PurchaseOrder",
+            object_id=purchase_order.pk,
+            object_repr=purchase_order.number,
+            description="Orden cancelada.",
+        )
+        messages.success(request, "La orden fue cancelada.")
 
     return redirect(purchase_order.get_absolute_url())

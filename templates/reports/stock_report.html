@@ -9,9 +9,9 @@
         <p class="text-muted mb-0">Consulta y exporta el estado actual del inventario.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'reports:stock_report_csv' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar CSV</a>
-        <a href="{% url 'reports:stock_report_xlsx' %}?{{ export_querystring }}" class="btn btn-outline-dark">Exportar Excel</a>
-        <a href="{% url 'reports:stock_report_pdf' %}?{{ export_querystring }}" class="btn btn-dark">Exportar PDF</a>
+        <a href="{% url 'reports:stock_report_csv' %}?{{ export_querystring }}" class="btn btn-outline-dark export-link">Exportar CSV</a>
+        <a href="{% url 'reports:stock_report_xlsx' %}?{{ export_querystring }}" class="btn btn-outline-dark export-link">Exportar Excel</a>
+        <a href="{% url 'reports:stock_report_pdf' %}?{{ export_querystring }}" class="btn btn-dark export-link">Exportar PDF</a>
     </div>
 </div>
 

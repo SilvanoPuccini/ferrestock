@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 
 class Category(models.Model):
@@ -65,7 +68,7 @@ class Product(models.Model):
     )
     unit_measure = models.CharField("unidad de medida", max_length=20, choices=UNIT_CHOICES, default="unidad")
     image = models.ImageField("imagen", upload_to="products/", blank=True, null=True)
-    is_active = models.BooleanField("activo", default=True)
+    is_active = models.BooleanField("activo", default=True, db_index=True)
     created_at = models.DateTimeField("creado el", auto_now_add=True)
     updated_at = models.DateTimeField("actualizado el", auto_now=True)
 
@@ -83,3 +86,13 @@ class Product(models.Model):
 
     def get_absolute_url(self):
         return reverse("inventory:product_detail", kwargs={"pk": self.pk})
+
+    @classmethod
+    def stale(cls, days=30):
+        """Productos activos sin movimientos de stock en los últimos `days` días."""
+        threshold = timezone.now() - timedelta(days=days)
+        return (
+            cls.objects.filter(is_active=True)
+            .exclude(movements__created_at__gte=threshold)
+            .distinct()
+        )

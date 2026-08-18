@@ -26,14 +26,21 @@
         {% endif %}
 
         {% if can_receive and perms.suppliers.receive_purchaseorder %}
-            <form method="post" action="{% url 'suppliers:purchase_order_receive' purchase_order.pk %}">
+            <form method="post" action="{% url 'suppliers:purchase_order_receive' purchase_order.pk %}" onsubmit="return confirm('¿Confirmás la recepción de esta orden? Esto va a sumar el stock de todos sus ítems.');">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success">Recibir orden</button>
             </form>
         {% endif %}
 
+        {% if can_reverse_receive and perms.suppliers.receive_purchaseorder %}
+            <form method="post" action="{% url 'suppliers:purchase_order_reverse_receive' purchase_order.pk %}" onsubmit="return confirm('¿Confirmás revertir la recepción? Esto va a descontar el stock que se sumó al recibir esta orden.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-warning">Revertir recepción</button>
+            </form>
+        {% endif %}
+
         {% if purchase_order.status != "received" and purchase_order.status != "cancelled" and perms.suppliers.cancel_purchaseorder %}
-            <form method="post" action="{% url 'suppliers:purchase_order_cancel' purchase_order.pk %}">
+            <form method="post" action="{% url 'suppliers:purchase_order_cancel' purchase_order.pk %}" onsubmit="return confirm('¿Confirmás cancelar esta orden de compra?');">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-danger">Cancelar</button>
             </form>
@@ -117,7 +124,7 @@
                                 <td>$ {{ item.line_total }}</td>
                                 {% if can_edit and perms.suppliers.change_purchaseorder and perms.suppliers.delete_purchaseorderitem %}
                                     <td class="text-end">
-                                        <form method="post" action="{% url 'suppliers:purchase_order_item_delete' purchase_order.pk item.pk %}">
+                                        <form method="post" action="{% url 'suppliers:purchase_order_item_delete' purchase_order.pk item.pk %}" onsubmit="return confirm('¿Eliminar este ítem de la orden?');">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
                                         </form>

@@ -4,10 +4,10 @@ from io import TextIOWrapper
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db import models, transaction
 from django.db.models import ProtectedError, Q
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import (
@@ -18,7 +18,7 @@ from django.views.generic import (
     DetailView,
 )
 
-from apps.core.mixins import AppPermissionMixin
+from apps.core.mixins import AppPermissionMixin, require_perms
 from apps.core.utils import log_audit_action
 from apps.movements.models import StockMovement
 from apps.suppliers.models import Supplier, ProductSupplier
@@ -38,6 +38,118 @@ def parse_decimal(value, default="0"):
 def parse_int(value, default=0):
     text = str(value).strip()
     return int(text or default)
+
+
+PRODUCT_IMPORT_COLUMNS = [
+    "code",
+    "name",
+    "category",
+    "supplier",
+    "cost_price",
+    "sale_price",
+    "stock_current",
+    "stock_minimum",
+    "unit_measure",
+    "barcode",
+    "description",
+    "is_active",
+]
+
+
+CATEGORY_IMPORT_COLUMNS = ["name", "description", "is_active"]
+
+
+@login_required
+@require_perms("inventory.add_category", "inventory.change_category")
+def import_categories_csv(request):
+    if request.method == "POST":
+        form = CSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data["file"]
+
+            if not csv_file.name.lower().endswith(".csv"):
+                messages.error(request, "Debes subir un archivo con extensión .csv")
+                return redirect("inventory:category_import")
+
+            decoded_file = TextIOWrapper(csv_file.file, encoding="utf-8")
+            reader = csv.DictReader(decoded_file)
+
+            if reader.fieldnames is None:
+                messages.error(request, "El archivo CSV no tiene encabezados válidos.")
+                return redirect("inventory:category_import")
+
+            missing = [col for col in CATEGORY_IMPORT_COLUMNS if col not in reader.fieldnames]
+            if missing:
+                messages.error(request, f"Faltan columnas obligatorias: {', '.join(missing)}")
+                return redirect("inventory:category_import")
+
+            created_count = 0
+            updated_count = 0
+            error_rows = []
+
+            for row_number, row in enumerate(reader, start=2):
+                try:
+                    name = row["name"].strip()
+                    if not name:
+                        raise ValueError("name es obligatorio.")
+                    description = row.get("description", "").strip()
+                    is_active = parse_bool(row.get("is_active", "true"))
+
+                    with transaction.atomic():
+                        category, created = Category.objects.update_or_create(
+                            name=name,
+                            defaults={"description": description, "is_active": is_active},
+                        )
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+                except Exception as exc:
+                    error_rows.append(f"Fila {row_number}: {exc}")
+
+            log_audit_action(
+                user=request.user,
+                module="inventory",
+                action="import",
+                object_type="CategoryCSV",
+                object_repr="Importación masiva de categorías",
+                description="Importación CSV de categorías ejecutada.",
+                metadata={
+                    "created": created_count,
+                    "updated": updated_count,
+                    "errors": error_rows[:10],
+                },
+            )
+
+            if created_count or updated_count:
+                messages.success(
+                    request,
+                    f"Importación finalizada. Creadas: {created_count}. Actualizadas: {updated_count}."
+                )
+
+            if error_rows:
+                preview = " | ".join(error_rows[:5])
+                messages.warning(request, f"Se encontraron errores: {preview}")
+
+            return redirect("inventory:category_list")
+    else:
+        form = CSVImportForm()
+
+    return render(
+        request,
+        "inventory/category_import.html",
+        {"form": form, "required_columns": CATEGORY_IMPORT_COLUMNS},
+    )
+
+
+@login_required
+@require_perms("inventory.add_product", "inventory.change_product")
+def download_product_import_template(request):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="ferrestock_product_import_template.csv"'
+    writer = csv.writer(response)
+    writer.writerow(PRODUCT_IMPORT_COLUMNS)
+    return response
 
 
 class CategoryListView(AppPermissionMixin, ListView):
@@ -86,6 +198,7 @@ class ProductListView(AppPermissionMixin, ListView):
     model = Product
     template_name = "inventory/product_list.html"
     context_object_name = "products"
+    paginate_by = 20
 
     def get_queryset(self):
         queryset = Product.objects.select_related("category", "supplier").order_by("name")
@@ -228,24 +341,9 @@ class ProductDeleteView(AppPermissionMixin, DeleteView):
 
 
 @login_required
+@require_perms("inventory.add_product", "inventory.change_product")
 def import_products_csv(request):
-    if not request.user.has_perms(["inventory.add_product", "inventory.change_product"]):
-        raise PermissionDenied
-
-    required_columns = [
-        "code",
-        "name",
-        "category",
-        "supplier",
-        "cost_price",
-        "sale_price",
-        "stock_current",
-        "stock_minimum",
-        "unit_measure",
-        "barcode",
-        "description",
-        "is_active",
-    ]
+    required_columns = PRODUCT_IMPORT_COLUMNS
 
     if request.method == "POST":
         form = CSVImportForm(request.POST, request.FILES)

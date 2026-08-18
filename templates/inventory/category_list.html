@@ -8,11 +8,16 @@
         <h1 class="mb-1">Categorías</h1>
         <p class="text-muted mb-0">Gestiona las categorías de productos del inventario.</p>
     </div>
-    {% if perms.inventory.add_category %}
-        <a href="{% url 'inventory:category_create' %}" class="btn btn-dark">
-            Nueva categoría
-        </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        {% if perms.inventory.add_category and perms.inventory.change_category %}
+            <a href="{% url 'inventory:category_import' %}" class="btn btn-outline-dark">Importar CSV</a>
+        {% endif %}
+        {% if perms.inventory.add_category %}
+            <a href="{% url 'inventory:category_create' %}" class="btn btn-dark">
+                Nueva categoría
+            </a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card shadow-sm">

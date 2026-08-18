@@ -20,7 +20,23 @@
 
                     <div class="mb-3">
                         <label class="form-label">Producto</label>
+                        <input
+                            type="text"
+                            id="item-product-search"
+                            class="form-control mb-1"
+                            list="item-product-datalist"
+                            placeholder="Buscar por código o nombre..."
+                            autocomplete="off"
+                        >
+                        <datalist id="item-product-datalist">
+                            {% for choice in form.fields.product.queryset %}
+                                <option value="{{ choice }}"></option>
+                            {% endfor %}
+                        </datalist>
                         {{ form.product }}
+                        {% if form.product.help_text %}
+                            <div class="form-text text-warning">{{ form.product.help_text }}</div>
+                        {% endif %}
                         {% if form.product.errors %}
                             <div class="text-danger small mt-1">{{ form.product.errors }}</div>
                         {% endif %}
@@ -48,4 +64,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        var search = document.getElementById("item-product-search");
+        var select = document.getElementById("{{ form.product.id_for_label }}");
+        if (!search || !select) return;
+
+        search.addEventListener("input", function () {
+            var typed = search.value.trim();
+            for (var i = 0; i < select.options.length; i++) {
+                if (select.options[i].text.trim() === typed) {
+                    select.value = select.options[i].value;
+                    break;
+                }
+            }
+        });
+    })();
+</script>
 {% endblock %}

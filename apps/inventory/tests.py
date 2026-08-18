@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -5,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.movements.models import StockMovement
 from apps.suppliers.models import ProductSupplier, Supplier
@@ -81,6 +83,77 @@ class ProductPriceFormTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
 
 
+class ProductStaleTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.category = Category.objects.create(name="Herramientas")
+        self.supplier = Supplier.objects.create(name="Proveedor Test")
+        self.user = User.objects.create_user(username="stale_user", password="Stale12345!")
+
+        self.stale_product = Product.objects.create(
+            code="STALE-001",
+            name="Producto Sin Movimientos",
+            category=self.category,
+            supplier=self.supplier,
+            cost_price=Decimal("10.00"),
+            sale_price=Decimal("20.00"),
+            stock_current=5,
+            stock_minimum=1,
+            unit_measure="unidad",
+        )
+
+        self.old_movement_product = Product.objects.create(
+            code="STALE-002",
+            name="Producto Con Movimiento Viejo",
+            category=self.category,
+            supplier=self.supplier,
+            cost_price=Decimal("10.00"),
+            sale_price=Decimal("20.00"),
+            stock_current=5,
+            stock_minimum=1,
+            unit_measure="unidad",
+        )
+        old_movement = StockMovement.objects.create(
+            product=self.old_movement_product,
+            movement_type=StockMovement.ENTRY,
+            quantity=1,
+            reason="Carga inicial",
+            user=self.user,
+        )
+        StockMovement.objects.filter(pk=old_movement.pk).update(
+            created_at=timezone.now() - timedelta(days=45)
+        )
+
+        self.recent_product = Product.objects.create(
+            code="STALE-003",
+            name="Producto Con Movimiento Reciente",
+            category=self.category,
+            supplier=self.supplier,
+            cost_price=Decimal("10.00"),
+            sale_price=Decimal("20.00"),
+            stock_current=5,
+            stock_minimum=1,
+            unit_measure="unidad",
+        )
+        StockMovement.objects.create(
+            product=self.recent_product,
+            movement_type=StockMovement.ENTRY,
+            quantity=1,
+            reason="Carga reciente",
+            user=self.user,
+        )
+
+    def test_stale_includes_products_without_recent_movement(self):
+        stale_ids = set(Product.stale(days=30).values_list("pk", flat=True))
+        self.assertIn(self.stale_product.pk, stale_ids)
+        self.assertIn(self.old_movement_product.pk, stale_ids)
+
+    def test_stale_excludes_products_with_recent_movement(self):
+        stale_ids = set(Product.stale(days=30).values_list("pk", flat=True))
+        self.assertNotIn(self.recent_product.pk, stale_ids)
+
+
 class ProductProtectedDeleteTests(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User
@@ -124,6 +197,27 @@ class ProductProtectedDeleteTests(TestCase):
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
 
 
+class ProductCSVTemplateDownloadTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.user = User.objects.create_superuser(
+            username="admin_template", password="Admin12345!", email="a@a.com"
+        )
+        self.client.login(username="admin_template", password="Admin12345!")
+
+    def test_template_response_has_expected_header(self):
+        response = self.client.get(reverse("inventory:product_import_template"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        content = response.content.decode("utf-8")
+        self.assertIn(
+            "code,name,category,supplier,cost_price,sale_price,stock_current,"
+            "stock_minimum,unit_measure,barcode,description,is_active",
+            content,
+        )
+
+
 class ProductCSVImportTests(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User
@@ -149,6 +243,28 @@ class ProductCSVImportTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Product.objects.filter(code="NEG-001").exists())
+
+    def test_category_import_creates_and_updates(self):
+        Category.objects.create(name="Existente", description="vieja", is_active=True)
+        content = (
+            "name,description,is_active\n"
+            "Existente,nueva,true\n"
+            "Nueva Categoria,recien creada,true\n"
+        )
+        response = self.client.post(
+            reverse("inventory:category_import"), {"file": self._csv_file(content)}
+        )
+        self.assertEqual(response.status_code, 302)
+        existente = Category.objects.get(name="Existente")
+        self.assertEqual(existente.description, "nueva")
+        self.assertTrue(Category.objects.filter(name="Nueva Categoria").exists())
+
+    def test_category_import_reports_row_error_without_crashing(self):
+        content = "name,description,is_active\n,sin nombre,true\n"
+        response = self.client.post(
+            reverse("inventory:category_import"), {"file": self._csv_file(content)}
+        )
+        self.assertEqual(response.status_code, 302)
 
     def test_row_failure_after_product_save_rolls_back_completely(self):
         content = (

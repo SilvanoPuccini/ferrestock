@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}Importar productos CSV | FerreStock{% endblock %}
+{% block title %}Importar proveedores CSV | FerreStock{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-8">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1 class="mb-1">Importar productos por CSV</h1>
-                <p class="text-muted mb-0">Carga masiva de productos y maestros básicos.</p>
+                <h1 class="mb-1">Importar proveedores por CSV</h1>
+                <p class="text-muted mb-0">Carga masiva de proveedores.</p>
             </div>
-            <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">Volver</a>
+            <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-outline-secondary">Volver</a>
         </div>
 
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data" id="csv-import-form">
+                <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
 
                     <div class="mb-4">
@@ -26,7 +26,7 @@
                         {% endif %}
                     </div>
 
-                    <button type="submit" class="btn btn-dark" id="csv-import-submit">Importar</button>
+                    <button type="submit" class="btn btn-dark">Importar</button>
                 </form>
             </div>
         </div>
@@ -42,25 +42,9 @@
                 <hr>
 
                 <p class="mb-2">Ejemplo de encabezado:</p>
-                <code>code,name,category,supplier,cost_price,sale_price,stock_current,stock_minimum,unit_measure,barcode,description,is_active</code>
-
-                <hr>
-
-                <a href="{% url 'inventory:product_import_template' %}" class="btn btn-outline-dark btn-sm">
-                    Descargar plantilla CSV
-                </a>
+                <code>name,email,phone,address,contact_person,is_active</code>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-    document.getElementById("csv-import-form").addEventListener("submit", function () {
-        var btn = document.getElementById("csv-import-submit");
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Importando...';
-    });
-</script>
 {% endblock %}

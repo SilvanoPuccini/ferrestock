@@ -30,7 +30,7 @@ class StockMovement(models.Model):
         related_name="stock_movements",
         verbose_name="usuario",
     )
-    created_at = models.DateTimeField("creado el", auto_now_add=True)
+    created_at = models.DateTimeField("creado el", auto_now_add=True, db_index=True)
 
     class Meta:
         verbose_name = "movimiento de stock"
@@ -43,10 +43,8 @@ class StockMovement(models.Model):
     def clean(self):
         if self.quantity <= 0:
             raise ValidationError({"quantity": "La cantidad debe ser mayor a 0."})
-
-        if self.movement_type == self.EXIT and self.product_id:
-            if self.pk is None and self.product.stock_current < self.quantity:
-                raise ValidationError({"quantity": "No hay stock suficiente para realizar la salida."})
+        # La validación de stock insuficiente para salidas se hace en save(),
+        # bajo select_for_update(), porque acá el producto todavía no está bloqueado.
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
