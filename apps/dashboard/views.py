@@ -15,68 +15,89 @@ from apps.suppliers.models import Supplier, PurchaseOrder
 def dashboard_home(request):
     today = timezone.localdate()
 
+    # El grupo "Consulta" es de solo lectura: ve las métricas agregadas pero no
+    # los widgets operativos (alertas, listas de pendientes, acciones rápidas).
+    is_read_only_role = request.user.groups.filter(name="Consulta").exists()
+
     total_products = Product.objects.count()
     total_categories = Category.objects.count()
     total_suppliers = Supplier.objects.count()
     total_purchase_orders = PurchaseOrder.objects.count()
     low_stock_count = Product.objects.filter(stock_current__lte=F("stock_minimum")).count()
 
-    latest_movements = StockMovement.objects.select_related("product", "user")[:5]
-    latest_purchase_orders = PurchaseOrder.objects.select_related("supplier")[:5]
+    if is_read_only_role:
+        latest_movements = StockMovement.objects.none()
+        latest_purchase_orders = PurchaseOrder.objects.none()
+        critical_products = Product.objects.none()
+        pending_receipt_orders = PurchaseOrder.objects.none()
+        draft_purchase_orders = PurchaseOrder.objects.none()
+        overdue_purchase_orders = PurchaseOrder.objects.none()
+        stale_products = Product.objects.none()
+        movement_type_labels = []
+        movement_type_counts = []
+        movement_daily_labels = []
+        entry_series = []
+        exit_series = []
+        adjustment_series = []
+    else:
+        latest_movements = StockMovement.objects.select_related("product", "user")[:5]
+        latest_purchase_orders = PurchaseOrder.objects.select_related("supplier")[:5]
 
-    critical_products = Product.objects.filter(
-        stock_current__lte=F("stock_minimum"),
-        is_active=True,
-    ).select_related("category", "supplier").order_by("stock_current", "name")[:8]
+        critical_products = Product.objects.filter(
+            stock_current__lte=F("stock_minimum"),
+            is_active=True,
+        ).select_related("category", "supplier").order_by("stock_current", "name")[:8]
 
-    pending_receipt_orders = PurchaseOrder.objects.select_related("supplier").filter(
-        status=PurchaseOrder.SENT
-    ).order_by("expected_date", "-created_at")[:5]
+        pending_receipt_orders = PurchaseOrder.objects.select_related("supplier").filter(
+            status=PurchaseOrder.SENT
+        ).order_by("expected_date", "-created_at")[:5]
 
-    draft_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
-        status=PurchaseOrder.DRAFT
-    ).order_by("-created_at")[:5]
+        draft_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
+            status=PurchaseOrder.DRAFT
+        ).order_by("-created_at")[:5]
 
-    overdue_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
-        status__in=[PurchaseOrder.DRAFT, PurchaseOrder.SENT],
-        expected_date__isnull=False,
-        expected_date__lt=today,
-    ).order_by("expected_date")[:5]
+        overdue_purchase_orders = PurchaseOrder.objects.select_related("supplier").filter(
+            status__in=[PurchaseOrder.DRAFT, PurchaseOrder.SENT],
+            expected_date__isnull=False,
+            expected_date__lt=today,
+        ).order_by("expected_date")[:5]
 
-    movement_type_rows = (
-        StockMovement.objects.values("movement_type")
-        .annotate(total=Count("id"))
-        .order_by("movement_type")
-    )
-    movement_labels_map = dict(StockMovement.MOVEMENT_TYPES)
-    movement_type_labels = [movement_labels_map[row["movement_type"]] for row in movement_type_rows]
-    movement_type_counts = [row["total"] for row in movement_type_rows]
+        stale_products = Product.stale(days=30).select_related("category", "supplier").order_by("name")[:8]
 
-    start_date = timezone.now() - timedelta(days=30)
-    daily_rows = (
-        StockMovement.objects.filter(created_at__gte=start_date)
-        .annotate(day=TruncDate("created_at"))
-        .values("day", "movement_type")
-        .annotate(total=Count("id"))
-        .order_by("day")
-    )
+        movement_type_rows = (
+            StockMovement.objects.values("movement_type")
+            .annotate(total=Count("id"))
+            .order_by("movement_type")
+        )
+        movement_labels_map = dict(StockMovement.MOVEMENT_TYPES)
+        movement_type_labels = [movement_labels_map[row["movement_type"]] for row in movement_type_rows]
+        movement_type_counts = [row["total"] for row in movement_type_rows]
 
-    days = sorted({row["day"] for row in daily_rows})
-    movement_daily_labels = [day.strftime("%d/%m") for day in days]
-    day_index = {day: index for index, day in enumerate(days)}
+        start_date = timezone.now() - timedelta(days=30)
+        daily_rows = (
+            StockMovement.objects.filter(created_at__gte=start_date)
+            .annotate(day=TruncDate("created_at"))
+            .values("day", "movement_type")
+            .annotate(total=Count("id"))
+            .order_by("day")
+        )
 
-    entry_series = [0] * len(days)
-    exit_series = [0] * len(days)
-    adjustment_series = [0] * len(days)
+        days = sorted({row["day"] for row in daily_rows})
+        movement_daily_labels = [day.strftime("%d/%m") for day in days]
+        day_index = {day: index for index, day in enumerate(days)}
 
-    for row in daily_rows:
-        index = day_index[row["day"]]
-        if row["movement_type"] == StockMovement.ENTRY:
-            entry_series[index] = row["total"]
-        elif row["movement_type"] == StockMovement.EXIT:
-            exit_series[index] = row["total"]
-        elif row["movement_type"] == StockMovement.ADJUSTMENT:
-            adjustment_series[index] = row["total"]
+        entry_series = [0] * len(days)
+        exit_series = [0] * len(days)
+        adjustment_series = [0] * len(days)
+
+        for row in daily_rows:
+            index = day_index[row["day"]]
+            if row["movement_type"] == StockMovement.ENTRY:
+                entry_series[index] = row["total"]
+            elif row["movement_type"] == StockMovement.EXIT:
+                exit_series[index] = row["total"]
+            elif row["movement_type"] == StockMovement.ADJUSTMENT:
+                adjustment_series[index] = row["total"]
 
     context = {
         "total_products": total_products,
@@ -90,6 +111,7 @@ def dashboard_home(request):
         "pending_receipt_orders": pending_receipt_orders,
         "draft_purchase_orders": draft_purchase_orders,
         "overdue_purchase_orders": overdue_purchase_orders,
+        "stale_products": stale_products,
         "movement_type_labels": movement_type_labels,
         "movement_type_counts": movement_type_counts,
         "movement_daily_labels": movement_daily_labels,

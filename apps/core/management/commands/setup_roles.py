@@ -20,8 +20,14 @@ class Command(BaseCommand):
         operator_group, _ = Group.objects.get_or_create(name="Operador")
         consult_group, _ = Group.objects.get_or_create(name="Consulta")
 
+        # AuditLogAdmin bloquea add/change/delete a nivel admin (es de solo lectura por
+        # diseño), asi que no tiene sentido otorgar esos permisos al grupo Administrador.
+        auditlog_content_type = ContentType.objects.get_for_model(AuditLog)
         admin_perms = Permission.objects.filter(
             content_type__app_label__in=["core", "inventory", "suppliers", "movements"]
+        ).exclude(
+            content_type=auditlog_content_type,
+            codename__in=["add_auditlog", "change_auditlog", "delete_auditlog"],
         )
 
         operator_perms = [

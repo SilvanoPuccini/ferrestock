@@ -57,5 +57,17 @@ class PurchaseOrderItemForm(forms.ModelForm):
             ).distinct().order_by("name")
             if filtered.exists():
                 queryset = filtered
+            else:
+                self.fields["product"].help_text = (
+                    "Este proveedor no tiene productos vinculados todavía: se muestran "
+                    "todos los productos del inventario, sin filtrar."
+                )
 
         self.fields["product"].queryset = queryset
+
+
+class SupplierCSVImportForm(forms.Form):
+    file = forms.FileField(
+        label="Archivo CSV",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".csv"})
+    )

@@ -15,7 +15,7 @@
 
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <form method="post" enctype="multipart/form-data" id="csv-import-form">
                     {% csrf_token %}
 
                     <div class="mb-4">
@@ -26,7 +26,7 @@
                         {% endif %}
                     </div>
 
-                    <button type="submit" class="btn btn-dark">Importar</button>
+                    <button type="submit" class="btn btn-dark" id="csv-import-submit">Importar</button>
                 </form>
             </div>
         </div>
@@ -43,8 +43,24 @@
 
                 <p class="mb-2">Ejemplo de encabezado:</p>
                 <code>code,name,category,supplier,cost_price,sale_price,stock_current,stock_minimum,unit_measure,barcode,description,is_active</code>
+
+                <hr>
+
+                <a href="{% url 'inventory:product_import_template' %}" class="btn btn-outline-dark btn-sm">
+                    Descargar plantilla CSV
+                </a>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById("csv-import-form").addEventListener("submit", function () {
+        var btn = document.getElementById("csv-import-submit");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Importando...';
+    });
+</script>
 {% endblock %}

@@ -80,7 +80,9 @@ class PurchaseOrder(models.Model):
         related_name="purchase_orders",
         verbose_name="proveedor",
     )
-    status = models.CharField("estado", max_length=20, choices=STATUS_CHOICES, default=DRAFT)
+    status = models.CharField(
+        "estado", max_length=20, choices=STATUS_CHOICES, default=DRAFT, db_index=True
+    )
     expected_date = models.DateField("fecha estimada", blank=True, null=True)
     notes = models.TextField("notas", blank=True)
     created_by = models.ForeignKey(
@@ -134,6 +136,26 @@ class PurchaseOrder(models.Model):
                 )
 
             self.status = self.RECEIVED
+            self.save(update_fields=["status", "updated_at"])
+
+    def reverse_receive(self, user):
+        if self.status != self.RECEIVED:
+            raise ValidationError("Solo se puede revertir una orden que fue recibida.")
+
+        from apps.movements.models import StockMovement
+
+        with transaction.atomic():
+            for item in self.items.select_related("product"):
+                StockMovement.objects.create(
+                    product=item.product,
+                    movement_type=StockMovement.EXIT,
+                    quantity=item.quantity,
+                    reason=f"Reversión de recepción de orden de compra {self.number}",
+                    reference=self.number,
+                    user=user,
+                )
+
+            self.status = self.SENT
             self.save(update_fields=["status", "updated_at"])
 
 

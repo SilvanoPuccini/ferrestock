@@ -5,6 +5,7 @@ app_name = "suppliers"
 
 urlpatterns = [
     path("", views.SupplierListView.as_view(), name="supplier_list"),
+    path("import/csv/", views.import_suppliers_csv, name="supplier_import"),
     path("create/", views.SupplierCreateView.as_view(), name="supplier_create"),
     path("<int:pk>/update/", views.SupplierUpdateView.as_view(), name="supplier_update"),
     path("<int:pk>/delete/", views.SupplierDeleteView.as_view(), name="supplier_delete"),
@@ -16,6 +17,11 @@ urlpatterns = [
     path("purchase-orders/<int:pk>/items/add/", views.purchase_order_add_item, name="purchase_order_add_item"),
     path("purchase-orders/<int:pk>/send/", views.purchase_order_mark_sent, name="purchase_order_send"),
     path("purchase-orders/<int:pk>/receive/", views.purchase_order_receive, name="purchase_order_receive"),
+    path(
+        "purchase-orders/<int:pk>/reverse-receive/",
+        views.purchase_order_reverse_receive,
+        name="purchase_order_reverse_receive",
+    ),
     path("purchase-orders/<int:pk>/cancel/", views.purchase_order_cancel, name="purchase_order_cancel"),
     path(
         "purchase-orders/<int:order_pk>/items/<int:item_pk>/delete/",

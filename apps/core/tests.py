@@ -49,6 +49,13 @@ class RolePermissionTests(TestCase):
             created_by=self.admin_user,
         )
 
+    def test_admin_group_has_no_auditlog_write_permissions(self):
+        admin_group = Group.objects.get(name="Administrador")
+        codenames = set(admin_group.permissions.values_list("codename", flat=True))
+        self.assertNotIn("add_auditlog", codenames)
+        self.assertNotIn("change_auditlog", codenames)
+        self.assertNotIn("delete_auditlog", codenames)
+
     def test_anonymous_user_redirected_from_protected_view(self):
         response = self.client.get(reverse("inventory:product_list"))
         self.assertEqual(response.status_code, 302)
