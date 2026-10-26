@@ -106,13 +106,10 @@ Puede visualizar stock, movimientos, compras y reportes, sin modificar datos.
 
 ---
 
-## 👨‍💻 Usuarios demo
+## 👨‍💻 Usuarios
 
-Después de ejecutar los comandos de setup, el sistema genera estos usuarios de prueba:
-
-- `admin_demo` / `Admin12345!`
-- `operador_demo` / `Operador12345!`
-- `consulta_demo` / `Consulta12345!`
+No hay usuarios demo públicos. Creá tu propio administrador con `python manage.py createsuperuser`
+y asigná los grupos (`Administrador`, `Operador`, `Consulta`) desde el panel.
 
 ---
 
@@ -217,7 +214,6 @@ DATABASE_URL=postgres://ferrestock_user:ferrestock_pass@localhost:5432/ferrestoc
 6. Ejecutar migraciones y datos base
 python manage.py migrate
 python manage.py setup_roles
-python manage.py create_demo_users
 python manage.py createsuperuser
 
 7. Ejecutar servidor
