@@ -47,7 +47,17 @@ class DisableDemoUsersTests(TestCase):
 
         self.assertFalse(User.objects.filter(username__in=DEMO_USERNAMES, is_active=True).exists())
 
-    def test_published_demo_seed_command_no_longer_exists(self):
-        from django.core.management import get_commands
+    def test_legacy_create_command_disables_instead_of_creating(self):
+        # Render dashboards may still run the old start command; it must lock, never seed.
+        call_command("create_demo_users")
 
-        self.assertNotIn("create_demo_users", get_commands())
+        self.assertFalse(User.objects.filter(username__in=DEMO_USERNAMES, is_active=True).exists())
+        for username, password in zip(DEMO_USERNAMES, PUBLISHED_PASSWORDS):
+            self.assertFalse(self.client.login(username=username, password=password))
+
+    def test_legacy_create_command_does_not_create_missing_accounts(self):
+        User.objects.filter(username__in=DEMO_USERNAMES).delete()
+
+        call_command("create_demo_users")
+
+        self.assertFalse(User.objects.filter(username__in=DEMO_USERNAMES).exists())
